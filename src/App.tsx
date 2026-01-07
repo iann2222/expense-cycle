@@ -1,43 +1,33 @@
 import { useMemo, useState } from "react";
+import type { SubscriptionItem } from "./types/models";
 import {
   AppBar,
   Box,
-  Container,
-  CssBaseline,
-  Fab,
-  Toolbar,
-  Typography,
+  Button,
   Card,
   CardContent,
   Chip,
-  Stack,
+  Container,
+  CssBaseline,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  MenuItem,
+  Drawer,
+  Fab,
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
+  Stack,
+  Toolbar,
+  Typography,
 } from "@mui/material";
+import MenuIcon from "@mui/icons-material/Menu";
 import AddIcon from "@mui/icons-material/Add";
+import RestoreFromTrashIcon from "@mui/icons-material/RestoreFromTrash";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-type BillingCycle = "monthly" | "yearly";
-
-type SubscriptionItem = {
-  id: string;
-  name: string;
-  amount: number;
-  currency: "TWD";
-  cycle: BillingCycle;
-
-  // B: 可繳日 + 截止日
-  payableFromISO: string; // 可繳日
-  dueDateISO: string; // 截止日
-
-  paymentMethod: string;
-  tags: string[];
-};
+import { useItems } from "./state/useItems";
+import { ItemCard } from "./components/ItemCard";
+import { ItemDialog } from "./components/ItemDialog";
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat("zh-TW", {
@@ -55,204 +45,161 @@ function toYearlyAmount(item: SubscriptionItem) {
   return item.cycle === "yearly" ? item.amount : item.amount * 12;
 }
 
-function todayISO() {
-  // yyyy-mm-dd
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function makeId() {
-  return crypto.randomUUID();
-}
+type View = "items" | "trash";
 
 export default function App() {
-  // 先用範例資料：下一步會改成 IndexedDB
-  const [items, setItems] = useState<SubscriptionItem[]>([
-    {
-      id: "rent",
-      name: "房租",
-      amount: 22000,
-      currency: "TWD",
-      cycle: "monthly",
-      payableFromISO: "2026-01-10",
-      dueDateISO: "2026-01-10",
-      paymentMethod: "轉帳（手動）",
-      tags: ["居住", "必要"],
-    },
-    {
-      id: "netflix",
-      name: "Netflix",
-      amount: 390,
-      currency: "TWD",
-      cycle: "monthly",
-      payableFromISO: "2026-01-18",
-      dueDateISO: "2026-01-18",
-      paymentMethod: "信用卡自動扣款",
-      tags: ["影音", "娛樂"],
-    },
-    {
-      id: "insurance",
-      name: "保險（年繳）",
-      amount: 24000,
-      currency: "TWD",
-      cycle: "yearly",
-      payableFromISO: "2026-06-30",
-      dueDateISO: "2026-06-30",
-      paymentMethod: "信用卡自動扣款",
-      tags: ["保險", "必要"],
-    },
-  ]);
+  const { loading, activeItems, trashItems, add, update, softDelete, restore, removeForever } =
+    useItems();
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [view, setView] = useState<View>("items");
 
   const [viewMode, setViewMode] = useState<"monthly" | "yearly">("monthly");
-
-  // Dialog 狀態
-  const [open, setOpen] = useState(false);
-
-  // 表單狀態（先做簡單版）
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState<string>("");
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
-  const [payableFromISO, setPayableFromISO] = useState<string>(todayISO());
-  const [dueDateISO, setDueDateISO] = useState<string>(todayISO());
-  const [paymentMethod, setPaymentMethod] = useState<string>("信用卡自動扣款");
-  const [tagInput, setTagInput] = useState<string>("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<SubscriptionItem | undefined>(undefined);
 
   const total = useMemo(() => {
-    const sum = items.reduce((acc, it) => {
-      return acc + (viewMode === "monthly" ? toMonthlyAmount(it) : toYearlyAmount(it));
-    }, 0);
-    return Math.round(sum);
-  }, [items, viewMode]);
+    return Math.round(
+      activeItems.reduce(
+        (acc, it) => acc + (viewMode === "monthly" ? toMonthlyAmount(it) : toYearlyAmount(it)),
+        0
+      )
+    );
+  }, [activeItems, viewMode]);
 
-  function resetForm() {
-    setName("");
-    setAmount("");
-    setCycle("monthly");
-    // B：預設可繳日與截止日相同
-    const t = todayISO();
-    setPayableFromISO(t);
-    setDueDateISO(t);
-    setPaymentMethod("信用卡自動扣款");
-    setTagInput("");
-    setTags([]);
-  }
-
-  function handleOpen() {
-    resetForm();
-    setOpen(true);
-  }
-
-  function handleClose() {
-    setOpen(false);
-  }
-
-  function addTagFromInput() {
-    const t = tagInput.trim();
-    if (!t) return;
-    if (tags.includes(t)) {
-      setTagInput("");
-      return;
-    }
-    setTags((prev) => [...prev, t]);
-    setTagInput("");
-  }
-
-  function removeTag(t: string) {
-    setTags((prev) => prev.filter((x) => x !== t));
-  }
-
-  function handleSubmit() {
-    const trimmed = name.trim();
-    const parsedAmount = Number(amount);
-
-    // 先做最小驗證
-    if (!trimmed) {
-      alert("請輸入名稱");
-      return;
-    }
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      alert("請輸入正確金額（大於 0）");
-      return;
-    }
-    if (!payableFromISO || !dueDateISO) {
-      alert("請選擇可繳日與截止日");
-      return;
-    }
-    if (payableFromISO > dueDateISO) {
-      alert("可繳日不能晚於截止日");
-      return;
-    }
-
-    const newItem: SubscriptionItem = {
-      id: makeId(),
-      name: trimmed,
-      amount: parsedAmount,
-      currency: "TWD",
-      cycle,
-      payableFromISO,
-      dueDateISO,
-      paymentMethod: paymentMethod.trim() || "（未填）",
-      tags,
-    };
-
-    setItems((prev) => [newItem, ...prev]);
-    setOpen(false);
-  }
+  const visibleItems = view === "items" ? activeItems : trashItems;
 
   return (
     <>
-      <CssBaseline />
-      <AppBar position="sticky" elevation={0}>
+      <AppBar position="fixed" elevation={0}>
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            ExpenseCycle
-          </Typography>
+          <IconButton
+						edge="start"
+						sx={{ mr: 1 }}
+						onClick={() => {
+							if (view === "trash") {
+								setView("items");
+							} else {
+								setDrawerOpen(true);
+							}
+						}}
+					>
+						{view === "trash" ? <ArrowBackIcon /> : <MenuIcon />}
+					</IconButton>
 
-          <Stack direction="row" spacing={1}>
-            <Chip
-              label="月統計"
-              clickable
-              color={viewMode === "monthly" ? "primary" : "default"}
-              onClick={() => setViewMode("monthly")}
-              variant={viewMode === "monthly" ? "filled" : "outlined"}
-            />
-            <Chip
-              label="年統計"
-              clickable
-              color={viewMode === "yearly" ? "primary" : "default"}
-              onClick={() => setViewMode("yearly")}
-              variant={viewMode === "yearly" ? "filled" : "outlined"}
-            />
-          </Stack>
+          <Typography
+						variant="h6"
+						sx={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}
+					>
+						ExpenseCycle{view === "trash" ? "（回收桶）" : ""}
+					</Typography>
+
+          {/* AppBar 右側保持乾淨；主要控制集中在 Drawer */}
         </Toolbar>
       </AppBar>
 
+			<Toolbar />
+
+      {/* Drawer：功能欄 */}
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <Box sx={{ width: 280, display: "flex", flexDirection: "column", height: "100%" }}>
+          <Box sx={{ p: 2 }}>
+            <Typography variant="subtitle1">功能</Typography>
+            <Typography variant="body2" color="text.secondary">
+              搜尋 / 篩選 / 排序 會放在這裡（下一步）
+            </Typography>
+          </Box>
+
+          <Divider />
+
+          {/* 視圖切換 */}
+          <List>
+            <ListItemButton
+              selected={view === "items"}
+              onClick={() => {
+                setView("items");
+                setDrawerOpen(false);
+              }}
+            >
+              <ListItemText primary="全部項目" />
+            </ListItemButton>
+          </List>
+
+          {/* 統計口徑：放 Drawer，不放 AppBar */}
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Typography variant="overline" color="text.secondary">
+              統計口徑
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+              <Chip
+                label="月"
+                clickable
+                color={viewMode === "monthly" ? "primary" : "default"}
+                variant={viewMode === "monthly" ? "filled" : "outlined"}
+                onClick={() => setViewMode("monthly")}
+              />
+              <Chip
+                label="年"
+                clickable
+                color={viewMode === "yearly" ? "primary" : "default"}
+                variant={viewMode === "yearly" ? "filled" : "outlined"}
+                onClick={() => setViewMode("yearly")}
+              />
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          {/* 這裡預留：搜尋 / 標籤篩選 / 排序（下一步做） */}
+          <Box sx={{ px: 2, py: 2 }}>
+            <Typography variant="overline" color="text.secondary">
+              （預留）
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              - 搜尋（名稱/標籤）{"\n"}- 依標籤篩選{"\n"}- 排序方式
+            </Typography>
+          </Box>
+
+          {/* 最底部：回收桶 */}
+          <Box sx={{ mt: "auto" }}>
+            <Divider />
+            <List>
+              <ListItemButton
+                selected={view === "trash"}
+                onClick={() => {
+                  setView("trash");
+                  setDrawerOpen(false);
+                }}
+              >
+                <RestoreFromTrashIcon fontSize="small" style={{ marginRight: 12 }} />
+                <ListItemText primary="回收桶" secondary="30 天後自動清除" />
+              </ListItemButton>
+            </List>
+          </Box>
+        </Box>
+      </Drawer>
+
       <Box sx={{ py: 3 }}>
         <Container maxWidth="sm">
-          <Card variant="outlined" sx={{ mb: 2 }}>
-            <CardContent>
-              <Typography variant="overline" color="text.secondary">
-                總計（{viewMode === "monthly" ? "月" : "年"}）
-              </Typography>
-              <Typography variant="h5" sx={{ mt: 0.5 }}>
-                {formatMoney(total, "TWD")}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                目前先存在記憶體；下一步會改成本機資料庫（IndexedDB），重整也不會不見。
-              </Typography>
-            </CardContent>
-          </Card>
+          {view === "items" && (
+            <Card variant="outlined" sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="overline" color="text.secondary">
+                  總計（{viewMode === "monthly" ? "月" : "年"}）
+                </Typography>
+                <Typography variant="h5">{formatMoney(total, "TWD")}</Typography>
+              </CardContent>
+            </Card>
+          )}
 
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            訂閱與固定支出
-          </Typography>
+          {loading && (
+            <Typography color="text.secondary" sx={{ mt: 2 }}>
+              載入中…
+            </Typography>
+          )}
 
           <Stack spacing={2}>
-            {items
+            {visibleItems
               .slice()
               .sort((a, b) => a.dueDateISO.localeCompare(b.dueDateISO))
               .map((item) => {
@@ -261,36 +208,53 @@ export default function App() {
                     ? Math.round(toMonthlyAmount(item))
                     : Math.round(toYearlyAmount(item));
 
+                const amountLabel = formatMoney(normalized, "TWD");
+
+                if (view === "items") {
+                  return (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      amountLabel={amountLabel}
+                      onClick={() => {
+                        setEditing(item);
+                        setDialogOpen(true);
+                      }}
+                    />
+                  );
+                }
+
+                // 回收桶：卡片不可編輯，提供還原/永久刪除
                 return (
                   <Card key={item.id} variant="outlined">
                     <CardContent>
                       <Stack direction="row" justifyContent="space-between" alignItems="baseline">
                         <Typography variant="h6">{item.name}</Typography>
-                        <Typography variant="h6">
-                          {formatMoney(normalized, item.currency)}
-                        </Typography>
+                        <Typography variant="h6">{amountLabel}</Typography>
                       </Stack>
 
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        週期：{item.cycle === "monthly" ? "每月" : "每年"} ｜ 可繳日：{item.payableFromISO} ｜ 截止日：{item.dueDateISO}
+                        刪除日：{item.deletedAtISO || "—"} ｜ 將於 {item.purgeAfterISO || "—"} 永久刪除
                       </Typography>
 
-                      <Divider sx={{ my: 1.5 }} />
-
-                      <Typography variant="body2" color="text.secondary">
-                        付款方式：{item.paymentMethod}
-                      </Typography>
-
-                      <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                        {item.tags.map((t) => (
-                          <Chip
-                            key={t}
-                            label={t}
-                            size="small"
-                            variant="outlined"
-                            sx={{ mb: 0.5 }}
-                          />
-                        ))}
+                      <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                        <Button
+                          variant="outlined"
+                          onClick={() => restore(item.id)}
+                        >
+                          還原
+                        </Button>
+                        <Button
+                          color="error"
+                          variant="outlined"
+                          onClick={() => {
+                            if (confirm("確定永久刪除？此動作無法復原")) {
+                              removeForever(item.id);
+                            }
+                          }}
+                        >
+                          永久刪除
+                        </Button>
                       </Stack>
                     </CardContent>
                   </Card>
@@ -298,119 +262,36 @@ export default function App() {
               })}
           </Stack>
 
-          <Fab
-            color="primary"
-            aria-label="add"
-            sx={{ position: "fixed", right: 20, bottom: 20 }}
-            onClick={handleOpen}
-          >
-            <AddIcon />
-          </Fab>
+          {/* 主視圖才顯示新增 FAB */}
+          {view === "items" && (
+            <Fab
+              color="primary"
+              sx={{ position: "fixed", right: 20, bottom: 20 }}
+              onClick={() => {
+                setEditing(undefined);
+                setDialogOpen(true);
+              }}
+            >
+              <AddIcon />
+            </Fab>
+          )}
         </Container>
       </Box>
 
-      {/* 新增訂閱 Dialog */}
-      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>新增項目</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="名稱"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例如：房租、Netflix、保險"
-              fullWidth
-            />
-
-            <TextField
-              label="金額"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              inputMode="numeric"
-              fullWidth
-            />
-
-            <TextField
-              label="週期"
-              select
-              value={cycle}
-              onChange={(e) => setCycle(e.target.value as BillingCycle)}
-              fullWidth
-            >
-              <MenuItem value="monthly">每月</MenuItem>
-              <MenuItem value="yearly">每年</MenuItem>
-            </TextField>
-
-            {/* B：兩個日期，預設同一天 */}
-            <TextField
-              label="可繳日"
-              type="date"
-              value={payableFromISO}
-              onChange={(e) => {
-                const v = e.target.value;
-                setPayableFromISO(v);
-                // 你要求：預設兩日期顯示同個日期
-                // 這裡做得更直覺：如果目前兩者相同，就跟著一起改
-                if (dueDateISO === payableFromISO) setDueDateISO(v);
-              }}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-
-            <TextField
-              label="截止日"
-              type="date"
-              value={dueDateISO}
-              onChange={(e) => setDueDateISO(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-
-            <TextField
-              label="付款方式"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              placeholder="例如：信用卡自動扣款 / 轉帳 / 超商繳費"
-              fullWidth
-            />
-
-            {/* 標籤 */}
-            <TextField
-              label="新增標籤（Enter 加入）"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTagFromInput();
-                }
-              }}
-              placeholder="例如：必要、娛樂、影音"
-              fullWidth
-            />
-
-            {tags.length > 0 && (
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                {tags.map((t) => (
-                  <Chip
-                    key={t}
-                    label={t}
-                    onDelete={() => removeTag(t)}
-                    sx={{ mb: 0.5 }}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Stack>
-        </DialogContent>
-
-        <DialogActions>
-          <Button onClick={handleClose}>取消</Button>
-          <Button variant="contained" onClick={handleSubmit}>
-            新增
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ItemDialog
+        open={dialogOpen}
+        initialItem={editing}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={(item) => {
+          // 保留既有刪除狀態（理論上編輯不會在回收桶中發生，但安全處理）
+          if (editing?.deletedAtISO) {
+            item.deletedAtISO = editing.deletedAtISO;
+            item.purgeAfterISO = editing.purgeAfterISO;
+          }
+          editing ? update(item) : add(item);
+        }}
+        onMoveToTrash={(id) => softDelete(id)}
+      />
     </>
   );
 }
