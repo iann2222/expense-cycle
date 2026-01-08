@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { SubscriptionItem } from "./types/models";
 import {
   AppBar,
@@ -8,7 +8,6 @@ import {
   CardContent,
   Chip,
   Container,
-  CssBaseline,
   Divider,
   Drawer,
   Fab,
@@ -20,14 +19,26 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+
 import MenuIcon from "@mui/icons-material/Menu";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
 import RestoreFromTrashIcon from "@mui/icons-material/RestoreFromTrash";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import SettingsIcon from "@mui/icons-material/Settings";
 
-import { useItems } from "./state/useItems";
+import { useItems, DB_NAME, STORE_NAME, type BackupPayload } from "./state/useItems";
+import type {
+  SettingsV1,
+  ThemeMode,
+  DefaultViewMode,
+  SortKey,
+  SortOrder,
+} from "./state/useSettings";
+import { useViewState } from "./state/useViewState";
+
 import { ItemCard } from "./components/ItemCard";
 import { ItemDialog } from "./components/ItemDialog";
+import { SettingsView } from "./components/SettingsView";
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat("zh-TW", {
@@ -45,87 +56,144 @@ function toYearlyAmount(item: SubscriptionItem) {
   return item.cycle === "yearly" ? item.amount : item.amount * 12;
 }
 
-type View = "items" | "trash";
+function compareItems(a: SubscriptionItem, b: SubscriptionItem, key: SortKey, order: SortOrder) {
+  let result = 0;
+  if (key === "dueDate") result = a.dueDateISO.localeCompare(b.dueDateISO);
+  else if (key === "amount") result = a.amount - b.amount;
+  else result = a.name.localeCompare(b.name, "zh-Hant");
 
-export default function App() {
-  const { loading, activeItems, trashItems, add, update, softDelete, restore, removeForever } =
-    useItems();
+  return order === "asc" ? result : -result;
+}
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [view, setView] = useState<View>("items");
+export default function App({
+  settings,
+  actions,
+}: {
+  settings: SettingsV1;
+  actions: {
+    setThemeMode: (mode: ThemeMode) => void;
+    setDefaultViewMode: (mode: DefaultViewMode) => void;
+    setDefaultSortKey: (key: SortKey) => void;
+    setDefaultSortOrder: (order: SortOrder) => void;
+  };
+}) {
+  const {
+    loading,
+    items,
+    activeItems,
+    trashItems,
+    add,
+    update,
+    softDelete,
+    restore,
+    removeForever,
+    exportBackup,
+    importBackupReplace,
+  } = useItems();
 
-  const [viewMode, setViewMode] = useState<"monthly" | "yearly">("monthly");
+  const vs = useViewState(settings);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SubscriptionItem | undefined>(undefined);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const total = useMemo(() => {
     return Math.round(
       activeItems.reduce(
-        (acc, it) => acc + (viewMode === "monthly" ? toMonthlyAmount(it) : toYearlyAmount(it)),
+        (acc, it) => acc + (vs.viewMode === "monthly" ? toMonthlyAmount(it) : toYearlyAmount(it)),
         0
       )
     );
-  }, [activeItems, viewMode]);
+  }, [activeItems, vs.viewMode]);
 
-  const visibleItems = view === "items" ? activeItems : trashItems;
+  function handleExport() {
+    const payload = exportBackup();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `expense-cycle-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleImportFile(file: File) {
+    const text = await file.text();
+    let payload: BackupPayload;
+
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      alert("匯入失敗：不是有效的 JSON");
+      return;
+    }
+
+    try {
+      await importBackupReplace(payload);
+      alert("匯入完成（已覆蓋本機資料）");
+      vs.backToItems();
+    } catch (e) {
+      alert(`匯入失敗：${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  const titleSuffix =
+    vs.view === "trash" ? "（回收桶）" : vs.view === "settings" ? "（設定）" : "";
 
   return (
     <>
       <AppBar position="fixed" elevation={0}>
         <Toolbar>
           <IconButton
-						edge="start"
-						sx={{ mr: 1 }}
-						onClick={() => {
-							if (view === "trash") {
-								setView("items");
-							} else {
-								setDrawerOpen(true);
-							}
-						}}
-					>
-						{view === "trash" ? <ArrowBackIcon /> : <MenuIcon />}
-					</IconButton>
+            edge="start"
+            sx={{ mr: 1 }}
+            onClick={() => {
+              if (vs.view !== "items") {
+                vs.backToItems();
+                return;
+              }
+              vs.openDrawer();
+            }}
+          >
+            {vs.view !== "items" ? <ArrowBackIcon /> : <MenuIcon />}
+          </IconButton>
 
           <Typography
-						variant="h6"
-						sx={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}
-					>
-						ExpenseCycle{view === "trash" ? "（回收桶）" : ""}
-					</Typography>
-
-          {/* AppBar 右側保持乾淨；主要控制集中在 Drawer */}
+            variant="h6"
+            sx={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}
+          >
+            ExpenseCycle{titleSuffix}
+          </Typography>
         </Toolbar>
       </AppBar>
 
-			<Toolbar />
+      <Toolbar />
 
-      {/* Drawer：功能欄 */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+      <Drawer open={vs.drawerOpen} onClose={vs.closeDrawer}>
         <Box sx={{ width: 280, display: "flex", flexDirection: "column", height: "100%" }}>
           <Box sx={{ p: 2 }}>
             <Typography variant="subtitle1">功能</Typography>
             <Typography variant="body2" color="text.secondary">
-              搜尋 / 篩選 / 排序 會放在這裡（下一步）
+              搜尋 / 篩選（下一步放這裡）
             </Typography>
           </Box>
 
           <Divider />
 
-          {/* 視圖切換 */}
           <List>
-            <ListItemButton
-              selected={view === "items"}
-              onClick={() => {
-                setView("items");
-                setDrawerOpen(false);
-              }}
-            >
+            <ListItemButton selected={vs.view === "items"} onClick={() => vs.goTo("items")}>
               <ListItemText primary="全部項目" />
+            </ListItemButton>
+
+            <ListItemButton selected={vs.view === "settings"} onClick={() => vs.goTo("settings")}>
+              <SettingsIcon fontSize="small" style={{ marginRight: 12 }} />
+              <ListItemText primary="設定" />
             </ListItemButton>
           </List>
 
-          {/* 統計口徑：放 Drawer，不放 AppBar */}
           <Box sx={{ px: 2, pb: 2 }}>
             <Typography variant="overline" color="text.secondary">
               統計口徑
@@ -134,43 +202,91 @@ export default function App() {
               <Chip
                 label="月"
                 clickable
-                color={viewMode === "monthly" ? "primary" : "default"}
-                variant={viewMode === "monthly" ? "filled" : "outlined"}
-                onClick={() => setViewMode("monthly")}
+                color={vs.viewMode === "monthly" ? "primary" : "default"}
+                variant={vs.viewMode === "monthly" ? "filled" : "outlined"}
+                onClick={() => vs.changeViewMode("monthly")}
               />
               <Chip
                 label="年"
                 clickable
-                color={viewMode === "yearly" ? "primary" : "default"}
-                variant={viewMode === "yearly" ? "filled" : "outlined"}
-                onClick={() => setViewMode("yearly")}
+                color={vs.viewMode === "yearly" ? "primary" : "default"}
+                variant={vs.viewMode === "yearly" ? "filled" : "outlined"}
+                onClick={() => vs.changeViewMode("yearly")}
               />
             </Stack>
+
+            <Button
+              size="small"
+              sx={{ mt: 1, px: 0, justifyContent: "flex-start" }}
+              onClick={vs.resetViewModeToDefault}
+            >
+              回復預設
+            </Button>
           </Box>
 
           <Divider />
 
-          {/* 這裡預留：搜尋 / 標籤篩選 / 排序（下一步做） */}
-          <Box sx={{ px: 2, py: 2 }}>
+          <Box sx={{ px: 2, pb: 2 }}>
             <Typography variant="overline" color="text.secondary">
-              （預留）
+              排序
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              - 搜尋（名稱/標籤）{"\n"}- 依標籤篩選{"\n"}- 排序方式
-            </Typography>
+
+            {/* 第一排：排序依據 */}
+            <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
+              <Chip
+                label="到期日"
+                clickable
+                color={vs.sortKey === "dueDate" ? "primary" : "default"}
+                variant={vs.sortKey === "dueDate" ? "filled" : "outlined"}
+                onClick={() => vs.changeSortKey("dueDate")}
+              />
+              <Chip
+                label="金額"
+                clickable
+                color={vs.sortKey === "amount" ? "primary" : "default"}
+                variant={vs.sortKey === "amount" ? "filled" : "outlined"}
+                onClick={() => vs.changeSortKey("amount")}
+              />
+              <Chip
+                label="名稱"
+                clickable
+                color={vs.sortKey === "name" ? "primary" : "default"}
+                variant={vs.sortKey === "name" ? "filled" : "outlined"}
+                onClick={() => vs.changeSortKey("name")}
+              />
+            </Stack>
+
+            {/* 第二排：升冪/降冪 */}
+            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+              <Chip
+                label="小 → 大"
+                clickable
+                color={vs.sortOrder === "asc" ? "primary" : "default"}
+                variant={vs.sortOrder === "asc" ? "filled" : "outlined"}
+                onClick={() => vs.changeSortOrder("asc")}
+              />
+              <Chip
+                label="大 → 小"
+                clickable
+                color={vs.sortOrder === "desc" ? "primary" : "default"}
+                variant={vs.sortOrder === "desc" ? "filled" : "outlined"}
+                onClick={() => vs.changeSortOrder("desc")}
+              />
+            </Stack>
+
+            <Button
+              size="small"
+              sx={{ mt: 1, px: 0, justifyContent: "flex-start" }}
+              onClick={vs.resetSortToDefault}
+            >
+              回復預設
+            </Button>
           </Box>
 
-          {/* 最底部：回收桶 */}
           <Box sx={{ mt: "auto" }}>
             <Divider />
             <List>
-              <ListItemButton
-                selected={view === "trash"}
-                onClick={() => {
-                  setView("trash");
-                  setDrawerOpen(false);
-                }}
-              >
+              <ListItemButton selected={vs.view === "trash"} onClick={() => vs.goTo("trash")}>
                 <RestoreFromTrashIcon fontSize="small" style={{ marginRight: 12 }} />
                 <ListItemText primary="回收桶" secondary="30 天後自動清除" />
               </ListItemButton>
@@ -181,99 +297,145 @@ export default function App() {
 
       <Box sx={{ py: 3 }}>
         <Container maxWidth="sm">
-          {view === "items" && (
-            <Card variant="outlined" sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="overline" color="text.secondary">
-                  總計（{viewMode === "monthly" ? "月" : "年"}）
+          {vs.view === "items" && (
+            <>
+              <Card variant="outlined" sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="overline" color="text.secondary">
+                    總計（{vs.viewMode === "monthly" ? "月" : "年"}）
+                  </Typography>
+                  <Typography variant="h5">{formatMoney(total, "TWD")}</Typography>
+                </CardContent>
+              </Card>
+
+              {loading && (
+                <Typography color="text.secondary" sx={{ mt: 2 }}>
+                  載入中…
                 </Typography>
-                <Typography variant="h5">{formatMoney(total, "TWD")}</Typography>
-              </CardContent>
-            </Card>
+              )}
+
+              <Stack spacing={2}>
+                {activeItems
+                  .slice()
+                  .sort((a, b) => compareItems(a, b, vs.sortKey, vs.sortOrder))
+                  .map((item) => {
+                    const normalized =
+                      vs.viewMode === "monthly"
+                        ? Math.round(toMonthlyAmount(item))
+                        : Math.round(toYearlyAmount(item));
+
+                    return (
+                      <ItemCard
+                        key={item.id}
+                        item={item}
+                        amountLabel={formatMoney(normalized, "TWD")}
+                        onClick={() => {
+                          setEditing(item);
+                          setDialogOpen(true);
+                        }}
+                      />
+                    );
+                  })}
+              </Stack>
+
+              <Fab
+                color="primary"
+                sx={{ position: "fixed", right: 20, bottom: 20 }}
+                onClick={() => {
+                  setEditing(undefined);
+                  setDialogOpen(true);
+                }}
+              >
+                <AddIcon />
+              </Fab>
+            </>
           )}
 
-          {loading && (
-            <Typography color="text.secondary" sx={{ mt: 2 }}>
-              載入中…
-            </Typography>
-          )}
+          {vs.view === "trash" && (
+            <Stack spacing={2}>
+              {trashItems
+                .slice()
+                .sort((a, b) => compareItems(a, b, vs.sortKey, vs.sortOrder))
+                .map((item) => {
+                  const normalized =
+                    vs.viewMode === "monthly"
+                      ? Math.round(toMonthlyAmount(item))
+                      : Math.round(toYearlyAmount(item));
+                  const amountLabel = formatMoney(normalized, "TWD");
 
-          <Stack spacing={2}>
-            {visibleItems
-              .slice()
-              .sort((a, b) => a.dueDateISO.localeCompare(b.dueDateISO))
-              .map((item) => {
-                const normalized =
-                  viewMode === "monthly"
-                    ? Math.round(toMonthlyAmount(item))
-                    : Math.round(toYearlyAmount(item));
-
-                const amountLabel = formatMoney(normalized, "TWD");
-
-                if (view === "items") {
                   return (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      amountLabel={amountLabel}
-                      onClick={() => {
-                        setEditing(item);
-                        setDialogOpen(true);
-                      }}
-                    />
+                    <Card key={item.id} variant="outlined">
+                      <CardContent>
+                        <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                          <Typography variant="h6">{item.name}</Typography>
+                          <Typography variant="h6">{amountLabel}</Typography>
+                        </Stack>
+
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          刪除日：{item.deletedAtISO || "—"} ｜ 將於 {item.purgeAfterISO || "—"} 永久刪除
+                        </Typography>
+
+                        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                          <Button variant="outlined" onClick={() => restore(item.id)}>
+                            還原
+                          </Button>
+                          <Button
+                            color="error"
+                            variant="outlined"
+                            onClick={() => {
+                              if (confirm("確定永久刪除？此動作無法復原")) {
+                                removeForever(item.id);
+                              }
+                            }}
+                          >
+                            永久刪除
+                          </Button>
+                        </Stack>
+                      </CardContent>
+                    </Card>
                   );
+                })}
+            </Stack>
+          )}
+
+          {vs.view === "settings" && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void handleImportFile(file);
+                  e.currentTarget.value = "";
+                }}
+              />
+
+              <SettingsView
+                themeMode={settings.themeMode}
+                onToggleTheme={() =>
+                  actions.setThemeMode(settings.themeMode === "light" ? "dark" : "light")
                 }
-
-                // 回收桶：卡片不可編輯，提供還原/永久刪除
-                return (
-                  <Card key={item.id} variant="outlined">
-                    <CardContent>
-                      <Stack direction="row" justifyContent="space-between" alignItems="baseline">
-                        <Typography variant="h6">{item.name}</Typography>
-                        <Typography variant="h6">{amountLabel}</Typography>
-                      </Stack>
-
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        刪除日：{item.deletedAtISO || "—"} ｜ 將於 {item.purgeAfterISO || "—"} 永久刪除
-                      </Typography>
-
-                      <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                        <Button
-                          variant="outlined"
-                          onClick={() => restore(item.id)}
-                        >
-                          還原
-                        </Button>
-                        <Button
-                          color="error"
-                          variant="outlined"
-                          onClick={() => {
-                            if (confirm("確定永久刪除？此動作無法復原")) {
-                              removeForever(item.id);
-                            }
-                          }}
-                        >
-                          永久刪除
-                        </Button>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-          </Stack>
-
-          {/* 主視圖才顯示新增 FAB */}
-          {view === "items" && (
-            <Fab
-              color="primary"
-              sx={{ position: "fixed", right: 20, bottom: 20 }}
-              onClick={() => {
-                setEditing(undefined);
-                setDialogOpen(true);
-              }}
-            >
-              <AddIcon />
-            </Fab>
+                defaultViewMode={settings.defaultViewMode}
+                onChangeDefaultViewMode={actions.setDefaultViewMode}
+                defaultSortKey={settings.defaultSortKey}
+                onChangeDefaultSortKey={actions.setDefaultSortKey}
+                defaultSortOrder={settings.defaultSortOrder}
+                onChangeDefaultSortOrder={actions.setDefaultSortOrder}
+                onExport={handleExport}
+                onImportClick={() => fileInputRef.current?.click()}
+                origin={window.location.origin}
+                dbName={DB_NAME}
+                storeName={STORE_NAME}
+                itemsCount={{
+                  active: activeItems.length,
+                  trash: trashItems.length,
+                  total: items.length,
+                }}
+              />
+            </>
           )}
         </Container>
       </Box>
@@ -283,7 +445,6 @@ export default function App() {
         initialItem={editing}
         onClose={() => setDialogOpen(false)}
         onSubmit={(item) => {
-          // 保留既有刪除狀態（理論上編輯不會在回收桶中發生，但安全處理）
           if (editing?.deletedAtISO) {
             item.deletedAtISO = editing.deletedAtISO;
             item.purgeAfterISO = editing.purgeAfterISO;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { SubscriptionItem } from "../types/models";
 
-const DB_NAME = "expense-cycle-db";
-const STORE_NAME = "items";
+export const DB_NAME = "expense-cycle-db";
+export const STORE_NAME = "items";
 const DB_VERSION = 1;
 
 function openDB(): Promise<IDBDatabase> {
@@ -66,6 +66,25 @@ async function deleteItem(id: string): Promise<void> {
   });
 }
 
+async function clearStore(): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export type BackupPayload = {
+  version: 1;
+  exportedAtISO: string;
+  origin: string;
+  dbName: string;
+  storeName: string;
+  items: SubscriptionItem[];
+};
+
 export function useItems() {
   const [items, setItems] = useState<SubscriptionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +95,6 @@ export function useItems() {
       const today = todayISO();
       const all = await getAllItems();
 
-      // 清理到期資料（不需要背景服務：每次打開 app 清一次即可）
       const expired = all.filter((it) => it.purgeAfterISO && it.purgeAfterISO < today);
       if (expired.length > 0) {
         await Promise.all(expired.map((it) => deleteItem(it.id)));
@@ -130,15 +148,40 @@ export function useItems() {
     setItems((prev) => prev.filter((x) => x.id !== id));
   }
 
+  function exportBackup(): BackupPayload {
+    return {
+      version: 1,
+      exportedAtISO: new Date().toISOString(),
+      origin: window.location.origin,
+      dbName: DB_NAME,
+      storeName: STORE_NAME,
+      items,
+    };
+  }
+
+  async function importBackupReplace(payload: BackupPayload) {
+    if (payload.version !== 1) throw new Error("不支援的備份版本");
+    if (!Array.isArray(payload.items)) throw new Error("備份內容格式錯誤（items）");
+
+    // 覆蓋策略：清空 store → 全部寫入 → 更新 state
+    await clearStore();
+    await Promise.all(payload.items.map((it) => putItem(it)));
+    setItems(payload.items);
+  }
+
   return {
     loading,
     items,
     activeItems: items.filter((x) => !x.deletedAtISO),
     trashItems: items.filter((x) => !!x.deletedAtISO),
+
     add,
     update,
     softDelete,
     restore,
     removeForever,
+
+    exportBackup,
+    importBackupReplace,
   };
 }
