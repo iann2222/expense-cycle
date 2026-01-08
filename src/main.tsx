@@ -1,30 +1,21 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.tsx";
+import App from "./App";
 import "./index.css";
 
-import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { CssBaseline } from "@mui/material";
 
 import { useSettings } from "./state/useSettings";
 
 function Root() {
-  const { settings, setThemeMode, setDefaultViewMode, setDefaultSortKey, setDefaultSortOrder } = useSettings();
+  const { settings, actions } = useSettings();
 
   const theme = React.useMemo(
     () =>
       createTheme({
-        palette: { mode: settings.themeMode },
-        typography: {
-          fontFamily: [
-            "system-ui",
-            "-apple-system",
-            "Segoe UI",
-            "Roboto",
-            "Noto Sans TC",
-            "Arial",
-            "sans-serif",
-          ].join(","),
+        palette: {
+          mode: settings.themeMode,
         },
       }),
     [settings.themeMode]
@@ -33,15 +24,7 @@ function Root() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <App
-        settings={settings}
-        actions={{
-          setThemeMode,
-          setDefaultViewMode,
-          setDefaultSortKey,
-          setDefaultSortOrder,
-        }}
-      />
+      <App settings={settings} actions={actions} />
     </ThemeProvider>
   );
 }

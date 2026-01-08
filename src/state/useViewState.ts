@@ -1,5 +1,10 @@
 import * as React from "react";
-import type { DefaultViewMode, SortKey, SortOrder, SettingsV1 } from "./useSettings";
+import type {
+  DefaultViewMode,
+  SortKey,
+  SortOrder,
+  SettingsV1,
+} from "./useSettings";
 
 export type View = "items" | "trash" | "settings";
 
@@ -7,10 +12,19 @@ export function useViewState(settings: SettingsV1) {
   const [view, setView] = React.useState<View>("items");
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
-  const [viewMode, setViewMode] = React.useState<DefaultViewMode>(settings.defaultViewMode);
+  // 檢視控制（初始值取自 settings）
+  const [viewMode, setViewMode] = React.useState<DefaultViewMode>(
+    settings.defaultViewMode
+  );
 
   const [sortKey, setSortKey] = React.useState<SortKey>(settings.defaultSortKey);
-  const [sortOrder, setSortOrder] = React.useState<SortOrder>(settings.defaultSortOrder);
+  const [sortOrder, setSortOrder] = React.useState<SortOrder>(
+    settings.defaultSortOrder
+  );
+
+  // 搜尋/篩選（只用在 items 視圖）
+  const [searchText, setSearchText] = React.useState("");
+  const [selectedTags, setSelectedTags] = React.useState<string[]>([]);
 
   const viewModeTouchedRef = React.useRef(false);
   const sortTouchedRef = React.useRef(false);
@@ -30,6 +44,7 @@ export function useViewState(settings: SettingsV1) {
   function openDrawer() {
     setDrawerOpen(true);
   }
+
   function closeDrawer() {
     setDrawerOpen(false);
   }
@@ -69,12 +84,30 @@ export function useViewState(settings: SettingsV1) {
     setSortOrder(settings.defaultSortOrder);
   }
 
+  function toggleTag(tag: string) {
+    setSelectedTags((prev) => {
+      if (prev.includes(tag)) return prev.filter((t) => t !== tag);
+      return [...prev, tag];
+    });
+  }
+
+  function clearFilters() {
+    setSearchText("");
+    setSelectedTags([]);
+  }
+
   return {
     view,
     drawerOpen,
     viewMode,
     sortKey,
     sortOrder,
+
+    searchText,
+    setSearchText,
+    selectedTags,
+    toggleTag,
+    clearFilters,
 
     openDrawer,
     closeDrawer,

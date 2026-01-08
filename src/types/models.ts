@@ -13,7 +13,9 @@ export type SubscriptionItem = {
   paymentMethod: string;
   tags: string[];
 
+  notes?: string;
+
   // 回收桶機制
-  deletedAtISO?: string; // 進回收桶時間
-  purgeAfterISO?: string; // 預計永久刪除時間（= deletedAt + 30天）
+  deletedAtISO?: string;
+  purgeAfterISO?: string;
 };
