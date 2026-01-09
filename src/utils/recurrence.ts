@@ -40,9 +40,13 @@ export function addYearsClamped(iso: string, years: number): ISODate {
 /**
  * 回傳今天的 ISO（以本機時區）
  */
-export function todayISO(): ISODate {
-  const d = new Date();
-  return toISO(d.getFullYear(), d.getMonth() + 1, d.getDate());
+export function todayISO() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 /**
@@ -77,13 +81,62 @@ export function nextOccurrenceISO(
   return cur;
 }
 
+function addCycleClamped(iso: string, cycle: SubscriptionItem["cycle"], n: number): ISODate {
+  if (n <= 0) return iso as ISODate;
+  return cycle === "monthly" ? addMonthsClamped(iso, n) : addYearsClamped(iso, n);
+}
+
 /**
- * 對某個 item 計算「下一次可繳日 / 截止日」
- * - 目前用獨立推算（payable、due 各自推到 >= today）
- * - 若你未來想讓 due 永遠跟 payable 同期（例如 due = payable + N 天），可再改策略
+ * 對某個 item 計算「本期/下一期的可繳日與截止日」
+ * 規則：
+ * 1) 本期是否輪替以「截止日」為準：只有 today > 截止日 才輪替到下一期
+ * 2) payable 必須對齊到截止日所屬的那一期：取 <= due 的最近一次 payable
  */
 export function computeNextDates(item: SubscriptionItem, fromISO: string) {
-  const nextPayable = nextOccurrenceISO(item.payableFromISO, item.cycle, fromISO);
-  const nextDue = nextOccurrenceISO(item.dueDateISO, item.cycle, fromISO);
-  return { nextPayable, nextDue };
+  // 防呆：格式不對就回 fromISO
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(item.payableFromISO) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(item.dueDateISO) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(fromISO)
+  ) {
+    const f = fromISO as ISODate;
+    return { nextPayable: f, nextDue: f };
+  }
+
+  const cycle = item.cycle;
+
+  // 先用 due 當作「期別」的 anchor
+  let due = item.dueDateISO as ISODate;
+
+  // 把 due 推到「>= fromISO 的第一個 due」（找到目前/下一期的截止日）
+  // 注意：若 fromISO <= due，代表我們仍在 due 所代表的這一期
+  if (fromISO > due) {
+    for (let i = 0; i < 2400; i++) {
+      due = addCycleClamped(due, cycle, 1);
+      if (fromISO <= due) break;
+    }
+  }
+
+  // payable 對齊：找「<= due 的最近一次 payable」
+  let payable = item.payableFromISO as ISODate;
+
+  // 先把 payable 粗略推到接近 due（避免 payable 跟 due 差距太大時跑很久）
+  // 這裡用 while 的方式仍然安全，因為月/年都可比較 ISO 字串
+  // 目標：讓 payable 逼近 due，但不要超過 due
+  if (payable > due) {
+    // payable 不應該在 due 之後；往回一個週期直到 <= due
+    // （由於我們只有 addCycle，這裡用最多 2400 次的往後推策略會更複雜；
+    //  簡化作法：不做回推，改成先用 payable 自己的 nextOccurrence 找 <=due 的最近值）
+  }
+
+  // 用「往後推」找到 <= due 的最大 payable
+  // 也就是：一直推，直到下一次推就會超過 due
+  for (let i = 0; i < 2400; i++) {
+    const next = addCycleClamped(payable, cycle, 1);
+    if (next <= due) payable = next;
+    else break;
+  }
+
+  // 最後得到的 payable/due 就是「目前應該顯示的本期」
+  return { nextPayable: payable, nextDue: due };
 }

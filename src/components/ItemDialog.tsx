@@ -7,20 +7,31 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
+  FormControlLabel,
   MenuItem,
   Popover,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
 import type { SubscriptionItem } from "../types/models";
+import { computeNextDates } from "../utils/recurrence";
+
+const TZ = "Asia/Taipei";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  // en-CA 會輸出 YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 function parseISO(iso: string) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -34,12 +45,19 @@ function daysInMonth(y: number, m: number) {
   return new Date(y, m, 0).getDate();
 }
 
-// ✅ 星期顯示：不帶「週」，只顯示「一二三…日」
+// 星期幾
 function weekdayZh(iso: string) {
   const { y, m, d } = parseISO(iso);
-  const date = new Date(y, (m || 1) - 1, d || 1);
-  const names = ["日", "一", "二", "三", "四", "五", "六"] as const;
-  return names[date.getDay()];
+
+  // 用 UTC 的中午建 Date，避免任何時區換算造成日期落在前/後一天
+  const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12, 0, 0));
+
+  const w = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: TZ,
+    weekday: "short",
+  }).format(date);
+
+  return w.replace(/^週/, "");
 }
 
 function uniqTags(tags: string[]) {
@@ -79,7 +97,10 @@ function DateFieldPopover({
   }, []);
 
   const maxD = React.useMemo(() => daysInMonth(y, m), [y, m]);
-  const days = React.useMemo(() => Array.from({ length: maxD }, (_, i) => i + 1), [maxD]);
+  const days = React.useMemo(
+    () => Array.from({ length: maxD }, (_, i) => i + 1),
+    [maxD]
+  );
 
   function open(e: React.MouseEvent<HTMLElement>) {
     setAnchorEl(e.currentTarget);
@@ -191,6 +212,7 @@ export function ItemDialog({
   onSubmit,
   onMoveToTrash,
   showWeekdayInDayPicker,
+  nowISO,
 }: {
   open: boolean;
   initialItem?: SubscriptionItem;
@@ -198,13 +220,16 @@ export function ItemDialog({
   onSubmit: (item: SubscriptionItem) => void;
   onMoveToTrash: (id: string) => void;
   showWeekdayInDayPicker: boolean;
+  nowISO: string;
 }) {
   const [name, setName] = React.useState("");
   const [amount, setAmount] = React.useState<string>("");
   const [cycle, setCycle] = React.useState<"monthly" | "yearly">("monthly");
   const [payableFromISO, setPayableFromISO] = React.useState(todayISO());
   const [dueDateISO, setDueDateISO] = React.useState(todayISO());
+  const baselineDatesRef = React.useRef<{ payable: string; due: string }>({ payable: "", due: "" });
   const [paymentMethod, setPaymentMethod] = React.useState("");
+  const [needsAttention, setNeedsAttention] = React.useState(true);
 
   const [tags, setTags] = React.useState<string[]>([]);
   const [tagInput, setTagInput] = React.useState("");
@@ -214,51 +239,87 @@ export function ItemDialog({
   const initialSnapshotRef = React.useRef<string>("");
   const [dirtyConfirmOpen, setDirtyConfirmOpen] = React.useState(false);
 
-  // ✅ 日期覆蓋確認（只在編輯且日期變更時）
+  // 日期覆蓋確認（只在編輯且日期變更時）
   const [dateConfirmOpen, setDateConfirmOpen] = React.useState(false);
-  const pendingSubmitRef = React.useRef<null | { applyDates: boolean }>(null);
 
   React.useEffect(() => {
     if (!open) return;
 
     if (initialItem) {
-      setName(initialItem.name);
-      setAmount(String(initialItem.amount));
-      setCycle(initialItem.cycle);
-      setPayableFromISO(initialItem.payableFromISO);
-      setDueDateISO(initialItem.dueDateISO);
-      setPaymentMethod(initialItem.paymentMethod || "");
-      setTags(uniqTags(initialItem.tags || []));
-      setTagInput("");
-      setNotes(initialItem.notes || "");
-    } else {
-      setName("");
-      setAmount("");
-      setCycle("monthly");
-      const t = todayISO();
-      setPayableFromISO(t);
-      setDueDateISO(t);
-      setPaymentMethod("");
-      setTags([]);
-      setTagInput("");
-      setNotes("");
-    }
+      const next = computeNextDates(initialItem, nowISO);
 
-    initialSnapshotRef.current = JSON.stringify({
-      name: initialItem?.name ?? "",
-      amount: initialItem ? String(initialItem.amount) : "",
-      cycle: initialItem?.cycle ?? "monthly",
-      payableFromISO: initialItem?.payableFromISO ?? todayISO(),
-      dueDateISO: initialItem?.dueDateISO ?? todayISO(),
-      paymentMethod: initialItem?.paymentMethod ?? "",
-      tags: uniqTags(initialItem?.tags ?? []),
-      notes: initialItem?.notes ?? "",
-    });
+      const init = {
+        name: initialItem.name,
+        amount: String(initialItem.amount),
+        cycle: initialItem.cycle,
+        payableFromISO: next.nextPayable,
+        dueDateISO: next.nextDue,
+        paymentMethod: initialItem.paymentMethod || "",
+        needsAttention: initialItem.needsAttention ?? true,
+        tags: uniqTags(initialItem.tags || []),
+        notes: initialItem.notes || "",
+      };
+
+      setName(init.name);
+      setAmount(init.amount);
+      setCycle(init.cycle);
+      setPayableFromISO(init.payableFromISO);
+      setDueDateISO(init.dueDateISO);
+      setPaymentMethod(init.paymentMethod);
+      setNeedsAttention(init.needsAttention);
+      setTags(init.tags);
+      setTagInput("");
+      setNotes(init.notes);
+
+      baselineDatesRef.current = { payable: init.payableFromISO, due: init.dueDateISO };
+
+      initialSnapshotRef.current = JSON.stringify({
+        ...init,
+        name: init.name.trim(),
+        amount: init.amount.trim(),
+        paymentMethod: init.paymentMethod.trim(),
+        tags: uniqTags(init.tags),
+        notes: init.notes.trim(),
+      });
+    } else {
+      const init = {
+        name: "",
+        amount: "",
+        cycle: "monthly" as const,
+        payableFromISO: nowISO,
+        dueDateISO: nowISO,
+        paymentMethod: "",
+        needsAttention: true,
+        tags: [] as string[],
+        notes: "",
+      };
+
+      setName(init.name);
+      setAmount(init.amount);
+      setCycle(init.cycle);
+      setPayableFromISO(init.payableFromISO);
+      setDueDateISO(init.dueDateISO);
+      setPaymentMethod(init.paymentMethod);
+      setNeedsAttention(init.needsAttention);
+      setTags(init.tags);
+      setTagInput("");
+      setNotes(init.notes);
+
+      baselineDatesRef.current = { payable: init.payableFromISO, due: init.dueDateISO };
+
+      initialSnapshotRef.current = JSON.stringify({
+        ...init,
+        name: init.name.trim(),
+        amount: init.amount.trim(),
+        paymentMethod: init.paymentMethod.trim(),
+        tags: uniqTags(init.tags),
+        notes: init.notes.trim(),
+      });
+    }
 
     setDirtyConfirmOpen(false);
     setDateConfirmOpen(false);
-    pendingSubmitRef.current = null;
-  }, [open, initialItem]);
+  }, [open, initialItem, nowISO]);
 
   function currentSnapshot() {
     return JSON.stringify({
@@ -268,6 +329,7 @@ export function ItemDialog({
       payableFromISO,
       dueDateISO,
       paymentMethod: paymentMethod.trim(),
+      needsAttention,
       tags: uniqTags(tags),
       notes: notes.trim(),
     });
@@ -289,17 +351,16 @@ export function ItemDialog({
       payableFromISO: applyDates ? payableFromISO : basePayable,
       dueDateISO: applyDates ? dueDateISO : baseDue,
       paymentMethod: paymentMethod.trim(),
+      needsAttention,
       tags: uniqTags(tags),
       notes: notes.trim() || undefined,
-      // 刪除欄位由外層保留處理（你 App.tsx 已做）
     };
   }
 
   function datesChanged() {
-    if (!initialItem) return false;
     return (
-      payableFromISO !== initialItem.payableFromISO ||
-      dueDateISO !== initialItem.dueDateISO
+      payableFromISO !== baselineDatesRef.current.payable ||
+      dueDateISO !== baselineDatesRef.current.due
     );
   }
 
@@ -309,14 +370,11 @@ export function ItemDialog({
   }
 
   function handleSaveClick() {
-    // 新增：不問
     if (!initialItem) {
       doSubmit(true);
       return;
     }
-    // 編輯：日期有改才問
     if (datesChanged()) {
-      pendingSubmitRef.current = { applyDates: true };
       setDateConfirmOpen(true);
       return;
     }
@@ -338,16 +396,16 @@ export function ItemDialog({
     setTagInput("");
   }
 
+  const isEdit = !!initialItem;
+
   return (
     <>
       <Dialog
         open={open}
-        onClose={(_e, reason) => {
-          if (reason === "backdropClick" || reason === "escapeKeyDown") {
+        onClose={(_, reason) => {
+          if (reason === "backdropClick" || reason === "escapeKeyDown")
             requestCloseFromBackdropOrEsc();
-          } else {
-            onClose();
-          }
+          else onClose();
         }}
         fullWidth
         maxWidth="sm"
@@ -356,15 +414,21 @@ export function ItemDialog({
 
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="名稱" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
+            <TextField
+              label="項目名稱"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+              autoFocus
+            />
 
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} alignItems="flex-start">
               <TextField
                 label="金額"
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                sx={{ flex: 1 }}
+                fullWidth
                 placeholder="例如：3200"
                 slotProps={{
                   htmlInput: { min: 0, inputMode: "numeric" },
@@ -375,8 +439,10 @@ export function ItemDialog({
                 select
                 label="週期"
                 value={cycle}
-                onChange={(e) => setCycle(e.target.value as any)}
-                sx={{ width: 140 }}
+                onChange={(e) =>
+                  setCycle(e.target.value as "monthly" | "yearly")
+                }
+                sx={{ width: 140, flexShrink: 0 }}
               >
                 <MenuItem value="monthly">每月</MenuItem>
                 <MenuItem value="yearly">每年</MenuItem>
@@ -384,52 +450,98 @@ export function ItemDialog({
             </Stack>
 
             <DateFieldPopover
-              label="可繳日（下一次）"
+              label="可繳日"
               valueISO={payableFromISO}
               onChangeISO={setPayableFromISO}
               showWeekdayInDayPicker={showWeekdayInDayPicker}
             />
+
             <DateFieldPopover
-              label="截止日（下一次）"
+              label="截止日"
               valueISO={dueDateISO}
               onChangeISO={setDueDateISO}
               showWeekdayInDayPicker={showWeekdayInDayPicker}
             />
 
-            <TextField
-              label="付款方式"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              fullWidth
-              helperText="例如：主動繳款、信用卡自動扣繳"
-            />
+            <Divider />
 
-            <TextField
-              label="標籤（按 Enter 新增）"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTagFromInput();
-                }
-              }}
-              fullWidth
-              helperText="例如：必要、娛樂、保險"
-            />
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              alignItems="flex-start"
+            >
+              {/* 左側：固定寬度 */}
+              <Box sx={{ width: { xs: "100%", sm: 320 }, flexShrink: 0 }}>
+                <TextField
+                  label="付款方式"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  fullWidth
+                  helperText="例如：主動繳款、信用卡自動扣繳"
+                />
+              </Box>
 
-            {tags.length > 0 && (
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+              {/* 右側：可撐開 + 可換行 */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={needsAttention}
+                      onChange={(e) => setNeedsAttention(e.target.checked)}
+                    />
+                  }
+                  label="即將到期警示"
+                  sx={{ m: 0 }}
+                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    mt: 0.5,
+                    pl: 7.3,
+                    display: "block",
+                    lineHeight: 1.4,
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  接近截止日時以顏色警示。
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Box>
+              <TextField
+                label="標籤（按 Enter 新增）"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTagFromInput();
+                  }
+                }}
+                fullWidth
+                helperText="例如：必要、娛樂、保險"
+              />
+
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ mt: 1, flexWrap: "wrap" }}
+              >
                 {tags.map((t) => (
                   <Chip
                     key={t}
                     label={t}
-                    onDelete={() => setTags((prev) => prev.filter((x) => x !== t))}
+                    onDelete={() =>
+                      setTags((prev) => prev.filter((x) => x !== t))
+                    }
                     sx={{ mb: 1 }}
                   />
                 ))}
               </Stack>
-            )}
+            </Box>
 
             <TextField
               label="備註"
@@ -437,78 +549,47 @@ export function ItemDialog({
               onChange={(e) => setNotes(e.target.value)}
               fullWidth
               multiline
-              minRows={3}
-              placeholder="例如：家庭共享，卡號末四碼 1234…"
+              minRows={1}
             />
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ px: 2, pb: 2 }}>
-          <Box sx={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Box>
-              {initialItem && (
-                <Button
-                  color="error"
-                  onClick={() => {
-                    if (confirm("確定移除？（會進入回收桶，可在 30 天內還原）")) {
-                      onMoveToTrash(initialItem.id);
-                      onClose();
-                    }
-                  }}
-                >
-                  移除
-                </Button>
-              )}
-            </Box>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          {isEdit && (
+            <Button
+              color="error"
+              onClick={() => {
+                if (
+                  confirm("確定移除？此項目會移到回收桶（30 天後永久刪除）。")
+                ) {
+                  onMoveToTrash(initialItem!.id);
+                  onClose();
+                }
+              }}
+            >
+              移除
+            </Button>
+          )}
 
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button onClick={onClose}>取消</Button>
-              <Button variant="contained" onClick={handleSaveClick}>
-                儲存
-              </Button>
-            </Box>
-          </Box>
+          {/* 這個 spacer 會把右側按鈕推到最右邊（即使沒有「移除」也一樣） */}
+          <Box sx={{ flex: 1 }} />
+
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button onClick={onClose}>取消</Button>
+            <Button variant="contained" onClick={handleSaveClick}>
+              儲存
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 
-      {/* ✅ 日期覆蓋確認（只在編輯且日期變更時） */}
-      <Dialog open={dateConfirmOpen} onClose={() => setDateConfirmOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>日期已變更</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            你這次修改了「可繳日（下一次）」或「截止日（下一次）」。
-            要把這次日期變更覆蓋到此項目嗎？
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            （若選「不覆蓋」，本次仍會儲存其他欄位變更，但日期會保留原值。）
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setDateConfirmOpen(false);
-              // 不覆蓋日期，只存其他欄位
-              doSubmit(false);
-            }}
-          >
-            不覆蓋
-          </Button>
-
-          <Button
-            variant="contained"
-            onClick={() => {
-              setDateConfirmOpen(false);
-              doSubmit(true);
-            }}
-            autoFocus
-          >
-            覆蓋日期
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* dirty confirm：點外面/ESC */}
-      <Dialog open={dirtyConfirmOpen} onClose={() => setDirtyConfirmOpen(false)} fullWidth maxWidth="xs">
+      {/* Dirty Confirm（捨棄變更 / 儲存並退出 / 繼續編輯，高亮在繼續編輯） */}
+      <Dialog
+        open={dirtyConfirmOpen}
+        onClose={() => setDirtyConfirmOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
         <DialogTitle>尚未儲存</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
@@ -525,20 +606,59 @@ export function ItemDialog({
           >
             捨棄變更
           </Button>
-
           <Button
-            variant="outlined"
             onClick={() => {
               setDirtyConfirmOpen(false);
-              onSubmit(buildItem(true));
-              onClose();
+              handleSaveClick();
             }}
           >
             儲存並退出
           </Button>
-
-          <Button variant="contained" autoFocus onClick={() => setDirtyConfirmOpen(false)}>
+          <Button
+            variant="contained"
+            onClick={() => setDirtyConfirmOpen(false)}
+          >
             繼續編輯
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ✅ 日期覆蓋確認（只在編輯且日期變更時） */}
+      <Dialog
+        open={dateConfirmOpen}
+        onClose={() => setDateConfirmOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>日期已變更</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            本次修改包含了「可繳日」或「截止日」。確定要編輯日期嗎？
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            若「放棄日期修改」仍會儲存其他欄位變更，只有日期維持不變。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setDateConfirmOpen(false);
+              // 不覆蓋日期，只存其他欄位
+              doSubmit(false);
+            }}
+          >
+            放棄日期修改
+          </Button>
+
+          <Button
+            variant="contained"
+            onClick={() => {
+              setDateConfirmOpen(false);
+              doSubmit(true);
+            }}
+            autoFocus
+          >
+            儲存日期修改
           </Button>
         </DialogActions>
       </Dialog>

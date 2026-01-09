@@ -85,7 +85,7 @@ export function TagsView({
   }
 
   async function doRemove() {
-    if (!confirm(`確定要移除標籤「${currentTag}」？\n（只會從所有項目移除該標籤，不會刪除項目）`)) {
+    if (!confirm(`確定要移除標籤「${currentTag}」？\n（只會從所有項目移除該標籤，不刪除項目本身）`)) {
       return;
     }
     setBusy(true);
@@ -197,16 +197,21 @@ export function TagsView({
           </Typography>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={busy}>
-            取消
-          </Button>
+        <DialogActions sx={{ justifyContent: "space-between", px: 3, py: 2 }}>
+          {/* 左下 */}
           <Button color="error" onClick={doRemove} disabled={busy}>
             移除標籤
           </Button>
-          <Button variant="contained" onClick={doRename} disabled={busy}>
-            儲存（改名）
-          </Button>
+
+          {/* 右下 */}
+          <Stack direction="row" spacing={1}>
+            <Button onClick={() => setOpen(false)} disabled={busy}>
+              取消
+            </Button>
+            <Button variant="contained" onClick={doRename} disabled={busy}>
+              儲存
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
     </Box>

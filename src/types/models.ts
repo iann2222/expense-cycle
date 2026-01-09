@@ -9,6 +9,7 @@ export type SubscriptionItem = {
 
   payableFromISO: string;
   dueDateISO: string;
+  needsAttention?: boolean;
 
   paymentMethod: string;
   tags: string[];
