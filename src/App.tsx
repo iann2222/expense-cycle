@@ -41,7 +41,7 @@ import {
   STORE_NAME,
   type BackupPayload,
 } from "./state/useItems";
-import type { SettingsV1, SortKey, SortOrder } from "./state/useSettings";
+import type { SettingsV1, SortKey, SortOrder, DefaultViewMode } from "./state/useSettings";
 import { useViewState } from "./state/useViewState";
 
 import { ItemCard } from "./components/ItemCard";
@@ -54,7 +54,6 @@ const TZ = "Asia/Taipei";
 const TZ_WARNING_KEY = "expenseCycle.dismissTzWarning.v1";
 
 function todayISO_UTC8() {
-  // en-CA 會輸出 YYYY-MM-DD
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
     year: "numeric",
@@ -87,9 +86,14 @@ function saveTagColors(map: TagColors) {
   localStorage.setItem(TAG_COLORS_KEY, JSON.stringify(map));
 }
 
-function formatMoney(amount: number) {
-  const n = Number.isFinite(amount) ? Math.round(amount) : 0;
-  return `${n.toLocaleString("zh-TW")} NTD`;
+function formatNTD(n: number) {
+  const v = Number.isFinite(n) ? Math.round(n) : 0;
+  return `${v.toLocaleString("zh-TW")} NTD`;
+}
+
+function formatOriginalLabel(item: SubscriptionItem) {
+  const unit = item.cycle === "monthly" ? "月" : "年";
+  return `${formatNTD(item.amount)} / ${unit}`;
 }
 
 function toMonthlyAmount(item: SubscriptionItem) {
@@ -180,9 +184,7 @@ export default function App({
   const [extraView, setExtraView] = useState<"tags" | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<SubscriptionItem | undefined>(
-    undefined
-  );
+  const [editing, setEditing] = useState<SubscriptionItem | undefined>(undefined);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -231,9 +233,8 @@ export default function App({
 
   useEffect(() => {
     const dismissedDate = localStorage.getItem(TZ_WARNING_KEY);
-		const today = todayISO_UTC8();
-
-		if (dismissedDate === today) return;
+    const today = todayISO_UTC8();
+    if (dismissedDate === today) return;
 
     const offsetMin = new Date().getTimezoneOffset(); // UTC+8 => -480
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
@@ -279,23 +280,36 @@ export default function App({
   const visibleTrashItems = useMemo(() => {
     return trashItems
       .slice()
-      .sort((a, b) =>
-        (b.deletedAtISO || "").localeCompare(a.deletedAtISO || "")
-      );
+      .sort((a, b) => (b.deletedAtISO || "").localeCompare(a.deletedAtISO || ""));
   }, [trashItems]);
 
+  const totalMonthlyRaw = useMemo(() => {
+		return Math.round(
+			visibleActiveItems.reduce((acc, it) => acc + (it.cycle === "monthly" ? it.amount : 0), 0)
+		);
+	}, [visibleActiveItems]);
+
+	const totalYearlyRaw = useMemo(() => {
+		return Math.round(
+			visibleActiveItems.reduce((acc, it) => acc + (it.cycle === "yearly" ? it.amount : 0), 0)
+		);
+	}, [visibleActiveItems]);
+
+	const totalMonthlyEq = useMemo(() => {
+		return Math.round(visibleActiveItems.reduce((acc, it) => acc + toMonthlyAmount(it), 0));
+	}, [visibleActiveItems]);
+
+	const totalYearlyEq = useMemo(() => {
+		return Math.round(visibleActiveItems.reduce((acc, it) => acc + toYearlyAmount(it), 0));
+	}, [visibleActiveItems]);
+
+
   const total = useMemo(() => {
-    return Math.round(
-      visibleActiveItems.reduce(
-        (acc, it) =>
-          acc +
-          (vs.viewMode === "monthly"
-            ? toMonthlyAmount(it)
-            : toYearlyAmount(it)),
-        0
-      )
-    );
-  }, [visibleActiveItems, vs.viewMode]);
+    if (vs.viewMode === "monthly") return totalMonthlyEq;
+    if (vs.viewMode === "yearly") return totalYearlyEq;
+    // original 不使用這個 total（會用 totalMonthlyEq/totalYearlyEq 顯示）
+    return totalMonthlyEq;
+  }, [vs.viewMode, totalMonthlyEq, totalYearlyEq]);
 
   function handleExport() {
     const payload = exportBackup();
@@ -312,9 +326,7 @@ export default function App({
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `expense-cycle-backup-${new Date()
-      .toISOString()
-      .slice(0, 10)}.json`;
+    a.download = `expense-cycle-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
 
     URL.revokeObjectURL(url);
@@ -391,6 +403,12 @@ export default function App({
     ? "（設定）"
     : "";
 
+  function viewModeLabel(vm: DefaultViewMode) {
+    if (vm === "original") return "依原週期";
+    if (vm === "monthly") return "月";
+    return "年";
+  }
+
   return (
     <>
       <AppBar position="fixed" elevation={0}>
@@ -410,11 +428,7 @@ export default function App({
               vs.openDrawer();
             }}
           >
-            {inTagsView || vs.view !== "items" ? (
-              <ArrowBackIcon />
-            ) : (
-              <MenuIcon />
-            )}
+            {inTagsView || vs.view !== "items" ? <ArrowBackIcon /> : <MenuIcon />}
           </IconButton>
 
           <Typography
@@ -433,15 +447,7 @@ export default function App({
       <Toolbar />
 
       <Drawer open={vs.drawerOpen} onClose={vs.closeDrawer}>
-        <Box
-          sx={{
-            width: 280,
-            display: "flex",
-            flexDirection: "column",
-            height: "100%",
-          }}
-        >
-          {/* 功能（搜尋/篩選） */}
+        <Box sx={{ width: 280, display: "flex", flexDirection: "column", height: "100%" }}>
           <Box sx={{ p: 2 }}>
             <Typography variant="h6" fontWeight={700}>
               選單
@@ -460,11 +466,7 @@ export default function App({
             />
 
             <Box sx={{ mt: 1.5 }}>
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="baseline"
-              >
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline">
                 <Typography variant="body2" color="text.secondary">
                   依標籤篩選（多選）
                 </Typography>
@@ -473,16 +475,13 @@ export default function App({
                 </Button>
               </Stack>
 
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ mt: 1, flexWrap: "wrap" }}
-              >
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
                 {availableTags.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
                     尚無標籤
                   </Typography>
                 )}
+
                 {availableTags.map((tag) => {
                   const selected = vs.selectedTags.includes(tag);
                   const color = tagColors[tag];
@@ -492,9 +491,7 @@ export default function App({
                       label={tag}
                       clickable
                       color={selected ? "primary" : "default"}
-                      variant={
-                        selected ? "filled" : color ? "filled" : "outlined"
-                      }
+                      variant={selected ? "filled" : color ? "filled" : "outlined"}
                       onClick={() => vs.toggleTag(tag)}
                       sx={{
                         mb: 1,
@@ -510,7 +507,6 @@ export default function App({
 
           <Divider />
 
-          {/* 全部項目 + 標籤管理 */}
           <List>
             <ListItemButton
               selected={!inTagsView && vs.view === "items"}
@@ -601,6 +597,13 @@ export default function App({
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
               <Chip
+                label="依原週期"
+                clickable
+                color={vs.viewMode === "original" ? "primary" : "default"}
+                variant={vs.viewMode === "original" ? "filled" : "outlined"}
+                onClick={() => vs.changeViewMode("original")}
+              />
+              <Chip
                 label="月"
                 clickable
                 color={vs.viewMode === "monthly" ? "primary" : "default"}
@@ -625,7 +628,6 @@ export default function App({
             </Button>
           </Box>
 
-          {/* 底部：設定（回收桶上方）＋ 回收桶 */}
           <Box sx={{ mt: "auto" }}>
             <Divider />
             <List>
@@ -647,10 +649,7 @@ export default function App({
                   vs.goTo("trash");
                 }}
               >
-                <RestoreFromTrashIcon
-                  fontSize="small"
-                  style={{ marginRight: 12 }}
-                />
+                <RestoreFromTrashIcon fontSize="small" style={{ marginRight: 12 }} />
                 <ListItemText primary="回收桶" secondary="30 天後自動清除" />
               </ListItemButton>
             </List>
@@ -675,9 +674,18 @@ export default function App({
               <Card variant="outlined" sx={{ mb: 2 }}>
                 <CardContent>
                   <Typography variant="overline" color="text.secondary">
-                    總計（{vs.viewMode === "monthly" ? "月" : "年"}）
+                    總計（{viewModeLabel(vs.viewMode)}）
                   </Typography>
-                  <Typography variant="h5">{formatMoney(total)}</Typography>
+
+                  {vs.viewMode === "original" ? (
+                    <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                      <Typography variant="h6">
+												{formatNTD(totalMonthlyRaw)}（月）＋ {formatNTD(totalYearlyRaw)}（年）
+											</Typography>
+                    </Stack>
+                  ) : (
+                    <Typography variant="h5">{formatNTD(total)}</Typography>
+                  )}
                 </CardContent>
               </Card>
 
@@ -689,21 +697,17 @@ export default function App({
 
               <Stack spacing={2}>
                 {visibleActiveItems.map((item) => {
-                  const normalized =
-                    vs.viewMode === "monthly"
-                      ? Math.round(toMonthlyAmount(item))
-                      : Math.round(toYearlyAmount(item));
-
                   const next = nextDateMap.get(item.id);
-
                   const payableISO = next?.nextPayable ?? item.payableFromISO;
                   const dueISO = next?.nextDue ?? item.dueDateISO;
 
                   const daysLeft = diffDays(nowISO, dueISO);
+
                   const showStatus =
                     settings.statusWindowDays >= 0 &&
                     daysLeft >= 0 &&
                     daysLeft <= settings.statusWindowDays;
+
                   const statusText = showStatus
                     ? daysLeft === 0
                       ? "今天到期"
@@ -716,11 +720,21 @@ export default function App({
                     daysLeft >= 0 &&
                     daysLeft <= settings.alertDays;
 
+                  // ✅ 三種口徑的金額顯示
+                  let amountLabel: string;
+                  if (vs.viewMode === "original") {
+                    amountLabel = formatOriginalLabel(item);
+                  } else if (vs.viewMode === "monthly") {
+                    amountLabel = formatNTD(Math.round(toMonthlyAmount(item)));
+                  } else {
+                    amountLabel = formatNTD(Math.round(toYearlyAmount(item)));
+                  }
+
                   return (
                     <ItemCard
                       key={item.id}
                       item={item}
-                      amountLabel={formatMoney(normalized)}
+                      amountLabel={amountLabel}
                       tagColors={tagColors}
                       payableISO={payableISO}
                       dueISO={dueISO}
@@ -751,31 +765,26 @@ export default function App({
           {!inTagsView && vs.view === "trash" && (
             <Stack spacing={2}>
               {visibleTrashItems.map((item) => {
-                const normalized =
-                  vs.viewMode === "monthly"
-                    ? Math.round(toMonthlyAmount(item))
-                    : Math.round(toYearlyAmount(item));
-                const amountLabel = formatMoney(normalized);
+                // 回收桶仍可跟隨 viewMode 顯示金額
+                let amountLabel: string;
+                if (vs.viewMode === "original") {
+                  amountLabel = formatOriginalLabel(item);
+                } else if (vs.viewMode === "monthly") {
+                  amountLabel = formatNTD(Math.round(toMonthlyAmount(item)));
+                } else {
+                  amountLabel = formatNTD(Math.round(toYearlyAmount(item)));
+                }
 
                 return (
                   <Card key={item.id} variant="outlined">
                     <CardContent>
-                      <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        alignItems="baseline"
-                      >
+                      <Stack direction="row" justifyContent="space-between" alignItems="baseline">
                         <Typography variant="h6">{item.name}</Typography>
                         <Typography variant="h6">{amountLabel}</Typography>
                       </Stack>
 
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{ mt: 0.5 }}
-                      >
-                        刪除日：{item.deletedAtISO || "—"} ｜ 將於{" "}
-                        {item.purgeAfterISO || "—"} 永久刪除
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        刪除日：{item.deletedAtISO || "—"} ｜ 將於 {item.purgeAfterISO || "—"} 永久刪除
                       </Typography>
 
                       <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
@@ -850,34 +859,30 @@ export default function App({
       </Box>
 
       <ItemDialog
-				open={dialogOpen}
-				initialItem={editing}
-				onClose={() => setDialogOpen(false)}
-				showWeekdayInDayPicker={settings.showWeekdayInDayPicker}
-				nowISO={nowISO}
-				onSubmit={(item) => {
-					if (editing?.deletedAtISO) {
-						item.deletedAtISO = editing.deletedAtISO;
-						item.purgeAfterISO = editing.purgeAfterISO;
-					}
-					editing ? update(item) : add(item);
-				}}
-				onMoveToTrash={(id) => {
-					void softDelete(id);
-				}}
-			/>
+        open={dialogOpen}
+        initialItem={editing}
+        onClose={() => setDialogOpen(false)}
+        showWeekdayInDayPicker={settings.showWeekdayInDayPicker}
+        nowISO={nowISO}
+        onSubmit={(item) => {
+          if (editing?.deletedAtISO) {
+            item.deletedAtISO = editing.deletedAtISO;
+            item.purgeAfterISO = editing.purgeAfterISO;
+          }
+          editing ? update(item) : add(item);
+        }}
+        onMoveToTrash={(id) => {
+          void softDelete(id);
+        }}
+      />
 
       <Dialog open={tzWarningOpen} onClose={() => setTzWarningOpen(false)}>
         <DialogTitle>時區提醒</DialogTitle>
         <DialogContent>
-          <Typography
-						variant="body2"
-						color="text.secondary"
-						sx={{ whiteSpace: "pre-line" }}
-					>
-						{`偵測到你的裝置時區可能不是 UTC+8（Asia/Taipei）。
-					ExpenseCycle 目前只支援以 UTC+8 計算日期與星期，裝置時區不同很可能導致日期時間有誤。`}
-					</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
+            {`偵測到你的裝置時區可能不是 UTC+8（Asia/Taipei）。
+						ExpenseCycle 目前只支援以 UTC+8 計算日期與星期，裝置時區不同很可能導致日期時間有誤。`}
+          </Typography>
 
           <Typography variant="body2" sx={{ mt: 1 }}>
             目前偵測：
@@ -885,8 +890,7 @@ export default function App({
             timeZone：{tzInfo.timeZone || "（未知）"}
             <br />
             offset：UTC{tzInfo.offsetMin <= 0 ? "+" : "-"}
-            {String(Math.abs(tzInfo.offsetMin / 60)).padStart(2, "0")}
-            :00
+            {String(Math.abs(tzInfo.offsetMin / 60)).padStart(2, "0")}:00
           </Typography>
 
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>

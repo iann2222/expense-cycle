@@ -1,7 +1,7 @@
 import * as React from "react";
 
 export type ThemeMode = "light" | "dark";
-export type DefaultViewMode = "monthly" | "yearly";
+export type DefaultViewMode = "original" | "monthly" | "yearly";
 export type SortKey = "dueDate" | "amount" | "name";
 export type SortOrder = "asc" | "desc";
 

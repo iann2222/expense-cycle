@@ -184,26 +184,8 @@ export function SettingsView({
           </Typography>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-            預設統計口徑
-          </Typography>
 
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant={defaultViewMode === "monthly" ? "contained" : "outlined"}
-              onClick={() => onChangeDefaultViewMode("monthly")}
-            >
-              月
-            </Button>
-            <Button
-              variant={defaultViewMode === "yearly" ? "contained" : "outlined"}
-              onClick={() => onChangeDefaultViewMode("yearly")}
-            >
-              年
-            </Button>
-          </Stack>
-
-          <Divider sx={{ my: 2 }} />
+          {/* 預設排序 */}
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
             預設排序
           </Typography>
@@ -244,6 +226,34 @@ export function SettingsView({
                 大 → 小
               </Button>
             </Stack>
+          </Stack>
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* 預設統計口徑 */}
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            預設統計口徑
+          </Typography>
+
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant={defaultViewMode === "original" ? "contained" : "outlined"}
+              onClick={() => onChangeDefaultViewMode("original")}
+            >
+              依原週期
+            </Button>
+            <Button
+              variant={defaultViewMode === "monthly" ? "contained" : "outlined"}
+              onClick={() => onChangeDefaultViewMode("monthly")}
+            >
+              月
+            </Button>
+            <Button
+              variant={defaultViewMode === "yearly" ? "contained" : "outlined"}
+              onClick={() => onChangeDefaultViewMode("yearly")}
+            >
+              年
+            </Button>
           </Stack>
         </CardContent>
       </Card>
