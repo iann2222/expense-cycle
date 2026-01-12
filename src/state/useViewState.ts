@@ -6,7 +6,7 @@ import type {
   SettingsV1,
 } from "./useSettings";
 
-export type View = "items" | "trash" | "settings";
+export type View = "items" | "analysis" | "settings" | "trash";
 
 export function useViewState(settings: SettingsV1) {
   const [view, setView] = React.useState<View>("items");

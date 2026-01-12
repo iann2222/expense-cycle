@@ -160,7 +160,7 @@ export function useItems() {
   }
 
   async function importBackupReplace(payload: BackupPayload) {
-    if (payload.version !== 1) throw new Error("不支援的備份版本");
+    if (payload.version !== 1) throw new Error("不支援的備份格式");
     if (!Array.isArray(payload.items)) throw new Error("備份內容格式錯誤（items）");
 
     // 覆蓋策略：清空 store → 全部寫入 → 更新 state

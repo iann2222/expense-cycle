@@ -17,6 +17,7 @@ import {
   Toolbar,
   Typography,
   Button,
+  Alert,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -26,6 +27,7 @@ import { ItemDialog } from "./components/ItemDialog";
 import { TagsPage } from "./views/TagsPage";
 import { ItemsView } from "./views/ItemsView";
 import { TrashView } from "./views/TrashView";
+import { AnalysisPage } from "./views/AnalysisPage";
 
 import type { TagColors } from "./components/TagsView";
 import { todayISO_UTC8, timeHM_UTC8 } from "./utils/dates";
@@ -146,6 +148,17 @@ export default function App({
     if (offsetMin !== -480) setTzWarningOpen(true);
   }, []);
 
+  // ✅ import result dialog (replaces browser alert)
+  const [importResult, setImportResult] = useState<{
+    open: boolean;
+    success: boolean;
+    message: string;
+  }>({
+    open: false,
+    success: true,
+    message: "",
+  });
+
   // tags
   const availableTags = useMemo(() => {
     const set = new Set<string>();
@@ -234,7 +247,11 @@ export default function App({
     try {
       raw = JSON.parse(text);
     } catch {
-      alert("匯入失敗：不是有效的 JSON");
+      setImportResult({
+        open: true,
+        success: false,
+        message: "匯入失敗：不是有效的 JSON",
+      });
       return;
     }
 
@@ -247,11 +264,21 @@ export default function App({
 
     try {
       await importBackupReplace(raw);
-      alert("匯入完成（已覆蓋本機資料）");
+
+      setImportResult({
+        open: true,
+        success: true,
+        message: "匯入完成（已覆蓋本機資料）",
+      });
+
       setExtraView(null);
       vs.backToItems();
     } catch (e) {
-      alert(`匯入失敗：${e instanceof Error ? e.message : String(e)}`);
+      setImportResult({
+        open: true,
+        success: false,
+        message: `匯入失敗：${e instanceof Error ? e.message : String(e)}`,
+      });
     }
   }
 
@@ -369,6 +396,10 @@ export default function App({
           setExtraView("tags");
           vs.closeDrawer();
         }}
+        onGoAnalysis={() => {
+          setExtraView(null);
+          vs.goTo("analysis");
+        }}
         onGoSettings={() => {
           setExtraView(null);
           vs.goTo("settings");
@@ -393,29 +424,33 @@ export default function App({
 
           {!inTagsView && vs.view === "items" && (
             <ItemsView
-							loading={loading}
-							items={visibleActiveItems}
-							nowISO={nowISO}
-							nextDateMap={nextDateMap}
-							tagColors={tagColors}
-							settings={settings}
-							viewMode={vs.viewMode}
-							totalMonthlyRaw={totalMonthlyRaw}
-							totalYearlyRaw={totalYearlyRaw}
-							onClickItem={(it) => {
-								setEditing(it);
-								setDialogOpen(true);
-							}}
-							onAdd={() => {
-								setEditing(undefined);
-								setDialogOpen(true);
-							}}
-							onMarkPaid={(id, dueISO) => {
-								const target = activeItems.find((x) => x.id === id);
-								if (!target) return;
-								update({ ...target, paidForDueISO: dueISO });
-							}}
-						/>
+              loading={loading}
+              items={visibleActiveItems}
+              nowISO={nowISO}
+              nextDateMap={nextDateMap}
+              tagColors={tagColors}
+              settings={settings}
+              viewMode={vs.viewMode}
+              totalMonthlyRaw={totalMonthlyRaw}
+              totalYearlyRaw={totalYearlyRaw}
+              onClickItem={(it) => {
+                setEditing(it);
+                setDialogOpen(true);
+              }}
+              onAdd={() => {
+                setEditing(undefined);
+                setDialogOpen(true);
+              }}
+              onMarkPaid={(id, dueISO) => {
+                const target = activeItems.find((x) => x.id === id);
+                if (!target) return;
+                update({ ...target, paidForDueISO: dueISO });
+              }}
+            />
+          )}
+
+          {!inTagsView && vs.view === "analysis" && (
+            <AnalysisPage items={activeItems} />
           )}
 
           {!inTagsView && vs.view === "trash" && (
@@ -463,6 +498,47 @@ export default function App({
           void softDelete(id);
         }}
       />
+
+      {/* 匯入結果：改用 MUI Dialog */}
+      <Dialog
+        open={importResult.open}
+        onClose={() =>
+          setImportResult((p) => ({
+            ...p,
+            open: false,
+          }))
+        }
+      >
+        <DialogTitle>
+          {importResult.success ? "匯入完成" : "匯入失敗"}
+        </DialogTitle>
+
+        <DialogContent>
+          <Alert severity={importResult.success ? "success" : "error"} sx={{ mb: 2 }}>
+            {importResult.message}
+          </Alert>
+
+          {!importResult.success && (
+            <Typography variant="body2" color="text.secondary">
+              請確認檔案是否為 ExpenseCycle 匯出的備份檔，或稍後再試一次。
+            </Typography>
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          <Button
+            variant="contained"
+            onClick={() =>
+              setImportResult((p) => ({
+                ...p,
+                open: false,
+              }))
+            }
+          >
+            確認
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={tzWarningOpen} onClose={() => setTzWarningOpen(false)}>
         <DialogTitle>時區提醒</DialogTitle>
