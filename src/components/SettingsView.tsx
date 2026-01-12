@@ -265,6 +265,9 @@ export function SettingsView({
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             時區限制：本應用目前只支援 UTC+8（Asia/Taipei）。如裝置時區不屬此時區，計算與顯示仍均以 UTC+8 為準。
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            週期限制：本應用目前只支援以月/年單位的週期。
+          </Typography>
         </CardContent>
       </Card>
 

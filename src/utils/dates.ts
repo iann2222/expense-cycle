@@ -12,10 +12,12 @@ export function todayISO_UTC8() {
 export function timeHM_UTC8() {
   return new Intl.DateTimeFormat("zh-TW", {
     timeZone: TZ,
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
+    hour12: true,
+  })
+    .format(new Date())
+    .replace(/\s/g, ""); // 有些環境會是「下午 1:27」，這裡把空白移掉
 }
 
 /** 差幾天（用 UTC 中午，避免時區/DST 造成落在前/後一天） */

@@ -393,24 +393,29 @@ export default function App({
 
           {!inTagsView && vs.view === "items" && (
             <ItemsView
-              loading={loading}
-              items={visibleActiveItems}
-              nowISO={nowISO}
-              nextDateMap={nextDateMap}
-              tagColors={tagColors}
-              settings={settings}
-              viewMode={vs.viewMode}
-              totalMonthlyRaw={totalMonthlyRaw}
-              totalYearlyRaw={totalYearlyRaw}
-              onClickItem={(it) => {
-                setEditing(it);
-                setDialogOpen(true);
-              }}
-              onAdd={() => {
-                setEditing(undefined);
-                setDialogOpen(true);
-              }}
-            />
+							loading={loading}
+							items={visibleActiveItems}
+							nowISO={nowISO}
+							nextDateMap={nextDateMap}
+							tagColors={tagColors}
+							settings={settings}
+							viewMode={vs.viewMode}
+							totalMonthlyRaw={totalMonthlyRaw}
+							totalYearlyRaw={totalYearlyRaw}
+							onClickItem={(it) => {
+								setEditing(it);
+								setDialogOpen(true);
+							}}
+							onAdd={() => {
+								setEditing(undefined);
+								setDialogOpen(true);
+							}}
+							onMarkPaid={(id, dueISO) => {
+								const target = activeItems.find((x) => x.id === id);
+								if (!target) return;
+								update({ ...target, paidForDueISO: dueISO });
+							}}
+						/>
           )}
 
           {!inTagsView && vs.view === "trash" && (

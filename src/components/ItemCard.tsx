@@ -1,4 +1,17 @@
-import { Box, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
+import * as React from "react";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  Typography,
+} from "@mui/material";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { SubscriptionItem } from "../types/models";
@@ -12,6 +25,8 @@ export function ItemCard({
   dueISO,
   statusText,
   alert,
+  markPaidVisible,
+  onMarkPaid,
 }: {
   item: SubscriptionItem;
   amountLabel: string;
@@ -21,102 +36,203 @@ export function ItemCard({
   dueISO: string;
   statusText?: string;
   alert?: boolean;
+  markPaidVisible?: boolean;
+  onMarkPaid?: () => void;
 }) {
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
   return (
-    <Card
-      variant="outlined"
-      onClick={onClick}
-      sx={{
-        cursor: "pointer",
-      }}
-    >
-      <CardContent
-        sx={{
-          position: "relative",
-          pt: 1.75,
-          pb: 1.75,
-          "&:last-child": {
-            pb: 1.75,
-          },
-        }}
-      >
-        <Stack direction="row" justifyContent="space-between" alignItems="baseline">
-          <Typography variant="h6">{item.name}</Typography>
-          <Typography variant="h6">{amountLabel}</Typography>
-        </Stack>
+    <>
+      <Card variant="outlined" onClick={onClick} sx={{ cursor: "pointer" }}>
+        <CardContent sx={{ pt: 1.75, pb: 1.75, "&:last-child": { pb: 1.75 } }}>
+          {/* ✅ 第一列：左（名稱+日期）｜右（金額+提醒） */}
+          <Box sx={{ display: "flex", gap: 2, alignItems: "stretch" }}>
+            {/* 左側主內容 */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="h6" noWrap>
+                {item.name}
+              </Typography>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          可繳日：{payableISO} ｜ 截止日：{dueISO}
-        </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  mt: 0.5,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                可繳日：{payableISO} ｜ 截止日：{dueISO}
+              </Typography>
 
-        {/* 標籤 + 狀態（右側固定不被推走） */}
-        <Box
-          sx={{
-            mt: 1,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 1,
-          }}
-        >
-          {/* 左：標籤（可換行、可縮） */}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap" }}>
-              {(item.tags || []).map((t) => (
-                <Chip
-                  key={t}
-                  size="small"
-                  label={t}
+              {(item.tags?.length ?? 0) > 0 ? (
+                <Stack
+                  direction="row"
+                  spacing={0.75}
+                  alignItems="center"
                   sx={{
-                    mb: 0.5,
-                    ...(tagColors[t]
-                      ? {
-                          bgcolor: tagColors[t],
-                          color: "rgba(0,0,0,0.87)",
-                        }
-                      : {}),
+                    mt: 0.75,
+                    minWidth: 0,
+                    flexWrap: "nowrap",
+                    overflow: "hidden",
                   }}
-                />
-              ))}
-            </Stack>
+                >
+                  {(item.tags || []).slice(0, 3).map((t) => (
+                    <Chip
+                      key={t}
+                      size="small"
+                      label={t}
+                      sx={{
+                        ...(tagColors[t]
+                          ? {
+                              bgcolor: tagColors[t],
+                              color: "rgba(0,0,0,0.87)",
+                            }
+                          : {}),
+                      }}
+                    />
+                  ))}
+
+                  {(item.tags || []).length > 3 ? (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`+${(item.tags || []).length - 3}`}
+                    />
+                  ) : null}
+                </Stack>
+              ) : null}
+            </Box>
+
+            {/* ✅ 右側欄位：spacer 推底，視覺更穩；maxWidth 做 responsive */}
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                flexShrink: 0,
+                minWidth: { xs: 120, sm: 140 },
+                maxWidth: { xs: 140, sm: 160 },
+                alignSelf: "stretch",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 右上：金額 */}
+              <Typography
+                variant="h6"
+                sx={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: "100%",
+                }}
+              >
+                {amountLabel}
+              </Typography>
+
+              {/* ✅ spacer：把右下區塊推到底（比 space-between 更不跳） */}
+              <Box sx={{ flexGrow: 1 }} />
+
+              {/* 右下：狀態（左） + 已繳費（右） */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 1,
+                  minWidth: 0, // 讓左邊狀態可被 ellipsis
+                }}
+              >
+                {statusText ? (
+                  <Stack
+                    direction="row"
+                    spacing={0.5}
+                    alignItems="center"
+                    sx={{
+                      minWidth: 0,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      color: alert ? "error.main" : "text.secondary",
+                    }}
+                  >
+                    {alert ? (
+                      <WarningAmberRounded
+                        sx={{ fontSize: 18, flexShrink: 0 }}
+                      />
+                    ) : (
+                      <AccessTimeRounded sx={{ fontSize: 18, flexShrink: 0 }} />
+                    )}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {statusText}
+                    </Typography>
+                  </Stack>
+                ) : null}
+
+                {markPaidVisible ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    onClick={() => setConfirmOpen(true)}
+                    sx={{
+                      minWidth: 0,
+                      px: 1.25,
+                      py: 0.25,
+                      whiteSpace: "nowrap",
+                      flexShrink: 0, // 按鈕不要被壓扁
+                    }}
+                  >
+                    已繳費？
+                  </Button>
+                ) : null}
+              </Box>
+            </Box>
           </Box>
 
-          {/* 右：狀態（固定在右側、不換行、不縮） */}
-          {statusText ? (
-            <Stack
-              direction="row"
-              spacing={0.5}
-              alignItems="center"
-              sx={{
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-                color: alert ? "error.main" : "text.secondary",
-                mt: 0.25, // 讓它視覺更貼近第一排 chip 的中心線，可微調
-              }}
+          {/* 備註（在第一列外面） */}
+          {item.notes ? (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 1, whiteSpace: "pre-wrap" }}
             >
-              {alert ? (
-                <WarningAmberRounded sx={{ fontSize: 18 }} />
-              ) : (
-                <AccessTimeRounded sx={{ fontSize: 18 }} />
-              )}
-
-              <Typography variant="caption" sx={{ fontWeight: 700, lineHeight: 1 }}>
-                {statusText}
-              </Typography>
-            </Stack>
+              {item.notes}
+            </Typography>
           ) : null}
-        </Box>
+        </CardContent>
+      </Card>
 
-        {item.notes ? (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mt: 1, whiteSpace: "pre-wrap" }}
-          >
-            {item.notes}
+      {/* ✅ MUI 端確認框 */}
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>確認繳費</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            確認已繳本次費用？確認後會取消紅色警示（低打擾提示仍可保留）。
           </Typography>
-        ) : null}
-      </CardContent>
-    </Card>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              onMarkPaid?.();
+              setConfirmOpen(false);
+            }}
+          >
+            確認
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }

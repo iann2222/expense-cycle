@@ -10,6 +10,7 @@ export type SubscriptionItem = {
   payableFromISO: string;
   dueDateISO: string;
   needsAttention?: boolean;
+  paidForDueISO?: string; // 若等於當期 nextDue，代表「這一輪」已繳費，紅色警示要消失
 
   paymentMethod: string;
   tags: string[];

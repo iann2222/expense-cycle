@@ -59,6 +59,14 @@ export function TagsView({
   const [newName, setNewName] = React.useState<string>("");
   const [busy, setBusy] = React.useState(false);
 
+  // ✅ 移除確認 Dialog state（取代 window.confirm）
+  const [removeConfirmOpen, setRemoveConfirmOpen] = React.useState(false);
+  const pendingRemoveTag = currentTag; // 這支頁面是「在編輯某個 tag 時」才會移除，所以用 currentTag 即可
+
+  // ✅ 完整沿用原本 confirm 的文字（完全不改）
+  const REMOVE_CONFIRM_TEXT = `確定要移除標籤「${pendingRemoveTag}」？
+（只會從所有項目移除該標籤，不刪除項目本身）`;
+
   function openEditor(tag: string) {
     setCurrentTag(tag);
     setNewName(tag);
@@ -84,17 +92,27 @@ export function TagsView({
     }
   }
 
-  async function doRemove() {
-    if (!confirm(`確定要移除標籤「${currentTag}」？\n（只會從所有項目移除該標籤，不刪除項目本身）`)) {
-      return;
-    }
+  // ✅ 改成只打開 MUI Dialog（不再 confirm）
+  function requestRemove() {
+    setRemoveConfirmOpen(true);
+  }
+
+  // ✅ 真正執行移除（在 Dialog 的「確認/移除」按鈕上呼叫）
+  async function confirmRemove() {
+    if (!pendingRemoveTag) return;
     setBusy(true);
     try {
-      await onRemoveTag(currentTag);
+      await onRemoveTag(pendingRemoveTag);
+      setRemoveConfirmOpen(false);
       setOpen(false);
     } finally {
       setBusy(false);
     }
+  }
+
+  function closeRemoveDialog() {
+    if (busy) return;
+    setRemoveConfirmOpen(false);
   }
 
   return (
@@ -125,7 +143,12 @@ export function TagsView({
                   justifyContent="space-between"
                   spacing={1}
                 >
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    sx={{ minWidth: 0 }}
+                  >
                     <Chip
                       label={tag}
                       variant={color ? "filled" : "outlined"}
@@ -150,7 +173,13 @@ export function TagsView({
         </CardContent>
       </Card>
 
-      <Dialog open={open} onClose={() => (busy ? null : setOpen(false))} fullWidth maxWidth="sm">
+      {/* 編輯標籤 Dialog */}
+      <Dialog
+        open={open}
+        onClose={() => (busy ? null : setOpen(false))}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogTitle>編輯標籤</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
@@ -199,7 +228,7 @@ export function TagsView({
 
         <DialogActions sx={{ justifyContent: "space-between", px: 3, py: 2 }}>
           {/* 左下 */}
-          <Button color="error" onClick={doRemove} disabled={busy}>
+          <Button color="error" onClick={requestRemove} disabled={busy}>
             移除標籤
           </Button>
 
@@ -212,6 +241,33 @@ export function TagsView({
               儲存
             </Button>
           </Stack>
+        </DialogActions>
+      </Dialog>
+
+      {/* 移除標籤 */}
+      <Dialog open={removeConfirmOpen} onClose={closeRemoveDialog}>
+        <DialogTitle>移除標籤</DialogTitle>
+        <DialogContent>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ whiteSpace: "pre-line" }}
+          >
+            {REMOVE_CONFIRM_TEXT}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeRemoveDialog} disabled={busy}>
+            取消
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={confirmRemove}
+            disabled={busy}
+          >
+            移除標籤
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

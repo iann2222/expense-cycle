@@ -131,7 +131,9 @@ function DateFieldPopover({
         label={label}
         value={display}
         fullWidth
-        InputProps={{ readOnly: true }}
+        slotProps={{
+          input: { readOnly: true }, // ✅ InputProps 已淘汰，改用 slotProps.input
+        }}
         onClick={open}
       />
 
@@ -227,7 +229,10 @@ export function ItemDialog({
   const [cycle, setCycle] = React.useState<"monthly" | "yearly">("monthly");
   const [payableFromISO, setPayableFromISO] = React.useState(todayISO());
   const [dueDateISO, setDueDateISO] = React.useState(todayISO());
-  const baselineDatesRef = React.useRef<{ payable: string; due: string }>({ payable: "", due: "" });
+  const baselineDatesRef = React.useRef<{ payable: string; due: string }>({
+    payable: "",
+    due: "",
+  });
   const [paymentMethod, setPaymentMethod] = React.useState("");
   const [needsAttention, setNeedsAttention] = React.useState(true);
 
@@ -241,6 +246,9 @@ export function ItemDialog({
 
   // 日期覆蓋確認（只在編輯且日期變更時）
   const [dateConfirmOpen, setDateConfirmOpen] = React.useState(false);
+
+  // ✅ A. 在 ItemDialog component 內加 input ref
+  const nameInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -271,7 +279,10 @@ export function ItemDialog({
       setTagInput("");
       setNotes(init.notes);
 
-      baselineDatesRef.current = { payable: init.payableFromISO, due: init.dueDateISO };
+      baselineDatesRef.current = {
+        payable: init.payableFromISO,
+        due: init.dueDateISO,
+      };
 
       initialSnapshotRef.current = JSON.stringify({
         ...init,
@@ -305,7 +316,10 @@ export function ItemDialog({
       setTagInput("");
       setNotes(init.notes);
 
-      baselineDatesRef.current = { payable: init.payableFromISO, due: init.dueDateISO };
+      baselineDatesRef.current = {
+        payable: init.payableFromISO,
+        due: init.dueDateISO,
+      };
 
       initialSnapshotRef.current = JSON.stringify({
         ...init,
@@ -319,6 +333,12 @@ export function ItemDialog({
 
     setDirtyConfirmOpen(false);
     setDateConfirmOpen(false);
+
+    // ✅ B. Dialog 打開時，如果名稱是「(未命名)」就自動選取
+    requestAnimationFrame(() => {
+      const el = nameInputRef.current;
+      if (el && el.value === "(未命名)") el.select();
+    });
   }, [open, initialItem, nowISO]);
 
   function currentSnapshot() {
@@ -350,6 +370,7 @@ export function ItemDialog({
       cycle,
       payableFromISO: applyDates ? payableFromISO : basePayable,
       dueDateISO: applyDates ? dueDateISO : baseDue,
+      paidForDueISO: initialItem?.paidForDueISO,
       paymentMethod: paymentMethod.trim(),
       needsAttention,
       tags: uniqTags(tags),
@@ -420,6 +441,11 @@ export function ItemDialog({
               onChange={(e) => setName(e.target.value)}
               fullWidth
               autoFocus
+              // ✅ C. 名稱 TextField 加上 inputRef + onFocus 選取
+              inputRef={nameInputRef}
+              onFocus={(e) => {
+                if (e.target.value === "(未命名)") e.target.select();
+              }}
             />
 
             <Stack direction="row" spacing={1} alignItems="flex-start">
@@ -439,9 +465,7 @@ export function ItemDialog({
                 select
                 label="週期"
                 value={cycle}
-                onChange={(e) =>
-                  setCycle(e.target.value as "monthly" | "yearly")
-                }
+                onChange={(e) => setCycle(e.target.value as "monthly" | "yearly")}
                 sx={{ width: 140, flexShrink: 0 }}
               >
                 <MenuItem value="monthly">每月</MenuItem>
@@ -525,18 +549,12 @@ export function ItemDialog({
                 helperText="例如：必要、娛樂、保險"
               />
 
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ mt: 1, flexWrap: "wrap" }}
-              >
+              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
                 {tags.map((t) => (
                   <Chip
                     key={t}
                     label={t}
-                    onDelete={() =>
-                      setTags((prev) => prev.filter((x) => x !== t))
-                    }
+                    onDelete={() => setTags((prev) => prev.filter((x) => x !== t))}
                     sx={{ mb: 1 }}
                   />
                 ))}
@@ -614,10 +632,7 @@ export function ItemDialog({
           >
             儲存並退出
           </Button>
-          <Button
-            variant="contained"
-            onClick={() => setDirtyConfirmOpen(false)}
-          >
+          <Button variant="contained" onClick={() => setDirtyConfirmOpen(false)}>
             繼續編輯
           </Button>
         </DialogActions>

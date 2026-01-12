@@ -27,6 +27,7 @@ export function ItemsView({
   totalYearlyRaw,
   onClickItem,
   onAdd,
+  onMarkPaid, // ✅ A) 新增
 }: {
   loading: boolean;
   items: SubscriptionItem[];
@@ -41,6 +42,9 @@ export function ItemsView({
 
   onClickItem: (item: SubscriptionItem) => void;
   onAdd: () => void;
+
+  // ✅ A) 先讓 ItemsView 接收一個 callback
+  onMarkPaid: (id: string, dueISO: string) => void;
 }) {
   function viewModeLabel(vm: DefaultViewMode) {
     if (vm === "original") return "依原週期";
@@ -106,11 +110,15 @@ export function ItemsView({
               : `剩 ${daysLeft} 天`
             : undefined;
 
-          const alert =
+          // ✅ B) rawAlert → paidForThisDue → alert
+          const rawAlert =
             (item.needsAttention ?? true) &&
             settings.alertDays >= 0 &&
             daysLeft >= 0 &&
             daysLeft <= settings.alertDays;
+
+          const paidForThisDue = item.paidForDueISO === dueISO;
+          const alert = rawAlert && !paidForThisDue;
 
           let amountLabel: string;
           if (viewMode === "original") amountLabel = formatOriginalLabel(item);
@@ -128,6 +136,9 @@ export function ItemsView({
               dueISO={dueISO}
               statusText={statusText}
               alert={alert}
+              // ✅ C) 只在紅色警示中顯示「已繳費？」
+              markPaidVisible={alert}
+              onMarkPaid={() => onMarkPaid(item.id, dueISO)}
               onClick={() => onClickItem(item)}
             />
           );
