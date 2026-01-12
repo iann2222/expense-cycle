@@ -150,7 +150,9 @@ export function AppDrawer({
               px: 2,
               minHeight: 48,
               "& .MuiAccordionSummary-content": { my: 0, alignItems: "center" },
-              "& .MuiAccordionSummary-expandIconWrapper": { color: "text.secondary" },
+              "& .MuiAccordionSummary-expandIconWrapper": {
+                color: "text.secondary",
+              },
 
               // 移除 Accordion 自帶底色，只留 ListItemButton 的
               bgcolor: "transparent",
@@ -176,7 +178,7 @@ export function AppDrawer({
 
           <AccordionDetails sx={{ pt: 0, pb: 1.5 }}>
             {/* 搜尋 */}
-            <Box sx={{ px: 2 }}>
+            <Box sx={{ px: 2, pt: 1 }}>
               <TextField
                 size="small"
                 fullWidth

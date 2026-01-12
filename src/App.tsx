@@ -148,7 +148,7 @@ export default function App({
     if (offsetMin !== -480) setTzWarningOpen(true);
   }, []);
 
-  // ✅ import result dialog (replaces browser alert)
+  // import result dialog
   const [importResult, setImportResult] = useState<{
     open: boolean;
     success: boolean;
@@ -341,7 +341,20 @@ export default function App({
 
   return (
     <>
-      <AppBar position="fixed" elevation={0}>
+      <AppBar
+        position="fixed"
+        elevation={0}
+        sx={(theme) => ({
+          bgcolor:
+            theme.palette.mode === "dark"
+              ? "rgba(255,255,255,0.04)" // 在深色底上加一層淡白
+              : theme.palette.background.paper,
+
+          backdropFilter: "saturate(180%) blur(6px)",
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        })}
+      >
         <Toolbar>
           <IconButton edge="start" sx={{ mr: 1 }} onClick={handleTopLeftClick}>
             {inTagsView || vs.view !== "items" ? (
@@ -487,19 +500,20 @@ export default function App({
         onClose={() => setDialogOpen(false)}
         showWeekdayInDayPicker={settings.showWeekdayInDayPicker}
         nowISO={nowISO}
-        onSubmit={(item) => {
+        onSubmit={async (item) => {
           if (editing?.deletedAtISO) {
             item.deletedAtISO = editing.deletedAtISO;
             item.purgeAfterISO = editing.purgeAfterISO;
           }
-          editing ? update(item) : add(item);
+          if (editing) await update(item);
+          else await add(item);
         }}
         onMoveToTrash={(id) => {
           void softDelete(id);
         }}
       />
 
-      {/* 匯入結果：改用 MUI Dialog */}
+      {/* 匯入結果 */}
       <Dialog
         open={importResult.open}
         onClose={() =>
@@ -514,7 +528,10 @@ export default function App({
         </DialogTitle>
 
         <DialogContent>
-          <Alert severity={importResult.success ? "success" : "error"} sx={{ mb: 2 }}>
+          <Alert
+            severity={importResult.success ? "success" : "error"}
+            sx={{ mb: 2 }}
+          >
             {importResult.message}
           </Alert>
 

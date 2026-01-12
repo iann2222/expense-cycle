@@ -45,26 +45,50 @@ export function ItemCard({
     <>
       <Card variant="outlined" onClick={onClick} sx={{ cursor: "pointer" }}>
         <CardContent sx={{ pt: 1.75, pb: 1.75, "&:last-child": { pb: 1.75 } }}>
-          {/* ✅ 第一列：左（名稱+日期）｜右（金額+提醒） */}
+          {/* 第一列：左（名稱+日期）｜右（金額+提醒） */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "stretch" }}>
             {/* 左側主內容 */}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignSelf: "stretch",
+              }}
+            >
               <Typography variant="h6" noWrap>
                 {item.name}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  mt: 0.5,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                可繳日：{payableISO} ｜ 截止日：{dueISO}
-              </Typography>
+              <Box sx={{ flexGrow: 1 }} />
+
+              {/* 日期顯示：xs 兩行、sm+ 一行 */}
+              <Box sx={{ mt: 0.5, minWidth: 0 }}>
+                {/* xs：顯示兩行 */}
+                <Box sx={{ display: { xs: "block", sm: "none" } }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {`可繳日：${payableISO}`}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {`截止日：${dueISO}`}
+                  </Typography>
+                </Box>
+
+                {/* sm+：顯示單行（含 ellipsis） */}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    display: { xs: "none", sm: "block" },
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {`可繳日：${payableISO} ｜ 截止日：${dueISO}`}
+                </Typography>
+              </Box>
 
               {(item.tags?.length ?? 0) > 0 ? (
                 <Stack
@@ -105,7 +129,7 @@ export function ItemCard({
               ) : null}
             </Box>
 
-            {/* ✅ 右側欄位：spacer 推底，視覺更穩；maxWidth 做 responsive */}
+            {/* 右側欄位：spacer 推底，視覺更穩；maxWidth 做 responsive */}
             <Box
               sx={{
                 display: "flex",
@@ -115,6 +139,7 @@ export function ItemCard({
                 minWidth: { xs: 120, sm: 140 },
                 maxWidth: { xs: 140, sm: 160 },
                 alignSelf: "stretch",
+                minHeight: 72,
               }}
               onClick={(e) => e.stopPropagation()}
             >

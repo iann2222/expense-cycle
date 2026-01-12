@@ -28,13 +28,13 @@ const SETTINGS_KEY = "expenseCycle.settings";
 
 const defaultSettings: SettingsV1 = {
   version: 1,
-  themeMode: "light",
+  themeMode: "dark",
 
   showWeekdayInDayPicker: true,
   statusWindowDays: 7,
   alertDays: 3,
 
-  defaultViewMode: "monthly",
+  defaultViewMode: "original",
   defaultSortKey: "dueDate",
   defaultSortOrder: "asc",
 };
@@ -59,9 +59,15 @@ function loadSettings(): SettingsV1 {
       ...defaultSettings,
       ...parsed,
       // 數字欄位做保護（避免 localStorage 被亂寫）
-      statusWindowDays: clampReminderDays(Number(parsed.statusWindowDays ?? defaultSettings.statusWindowDays)),
-      alertDays: clampReminderDays(Number(parsed.alertDays ?? defaultSettings.alertDays)),
-      showWeekdayInDayPicker: Boolean(parsed.showWeekdayInDayPicker ?? defaultSettings.showWeekdayInDayPicker),
+      statusWindowDays: clampReminderDays(
+        Number(parsed.statusWindowDays ?? defaultSettings.statusWindowDays)
+      ),
+      alertDays: clampReminderDays(
+        Number(parsed.alertDays ?? defaultSettings.alertDays)
+      ),
+      showWeekdayInDayPicker: Boolean(
+        parsed.showWeekdayInDayPicker ?? defaultSettings.showWeekdayInDayPicker
+      ),
     };
   } catch {
     return defaultSettings;
@@ -85,9 +91,7 @@ export function useSettings() {
         statusWindowDays: clampReminderDays(
           Number(next.statusWindowDays ?? prev.statusWindowDays)
         ),
-        alertDays: clampReminderDays(
-          Number(next.alertDays ?? prev.alertDays)
-        ),
+        alertDays: clampReminderDays(Number(next.alertDays ?? prev.alertDays)),
       };
       saveSettings(merged);
       return merged;
