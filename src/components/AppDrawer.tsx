@@ -173,7 +173,7 @@ export function AppDrawer({
             <ListItemIcon sx={{ minWidth: 36 }}>
               <ViewListIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText primary="首頁項目" />
+            <ListItemText primary="首頁" />
           </AccordionSummary>
 
           <AccordionDetails sx={{ pt: 0, pb: 1.5 }}>
@@ -202,10 +202,14 @@ export function AppDrawer({
                   </Button>
                 </Stack>
 
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ mt: 1, flexWrap: "wrap" }}
+                <Box
+                  sx={{
+                    mt: 1,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 1,           // 同時控制水平+垂直間距
+                  }}
                 >
                   {availableTags.length === 0 && (
                     <Typography variant="body2" color="text.secondary">
@@ -216,29 +220,24 @@ export function AppDrawer({
                   {availableTags.map((tag) => {
                     const selected = selectedTags.includes(tag);
                     const color = tagColors[tag];
+
                     return (
                       <Chip
                         key={tag}
                         label={tag}
                         clickable
                         color={selected ? "primary" : "default"}
-                        variant={
-                          selected ? "filled" : color ? "filled" : "outlined"
-                        }
+                        variant={selected ? "filled" : color ? "filled" : "outlined"}
                         onClick={() => onToggleTag(tag)}
                         sx={{
-                          mb: 1,
                           bgcolor: selected ? undefined : color || undefined,
-                          color: selected
-                            ? undefined
-                            : color
-                            ? "#fff"
-                            : undefined,
+                          color: selected ? undefined : color ? "#fff" : undefined,
                         }}
                       />
                     );
                   })}
-                </Stack>
+                </Box>
+
               </Box>
 
               <Divider sx={{ my: 2 }} />

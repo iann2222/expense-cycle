@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { SubscriptionItem } from "./types/models";
 import type { SettingsV1 } from "./state/useSettings";
 import { useItems, DB_NAME, STORE_NAME } from "./state/useItems";
@@ -9,15 +9,9 @@ import {
   AppBar,
   Box,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   Toolbar,
   Typography,
-  Button,
-  Alert,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -29,29 +23,19 @@ import { ItemsView } from "./views/ItemsView";
 import { TrashView } from "./views/TrashView";
 import { AnalysisPage } from "./views/AnalysisPage";
 
-import type { TagColors } from "./components/TagsView";
-import { todayISO_UTC8, timeHM_UTC8 } from "./utils/dates";
 import { matchesSearch, matchesTagsOR } from "./utils/search";
 import { compareItemsWithNext, type NextDates } from "./utils/sort";
 import { SettingsPage } from "./views/SettingsPage";
 
-const TAG_COLORS_KEY = "expenseCycle.tagColors";
-const TZ_WARNING_KEY = "expenseCycle.dismissTzWarning.v1";
+import { useTagColors } from "./state/useTagColors";
+import { useTagOps } from "./state/useTagOps";
+import { useNowUTC8 } from "./state/useNowUTC8";
+import { ImportResultDialog } from "./components/ImportResultDialog";
 
-function loadTagColors(): TagColors {
-  try {
-    const raw = localStorage.getItem(TAG_COLORS_KEY);
-    if (!raw) return {};
-    const obj = JSON.parse(raw) as TagColors;
-    return obj && typeof obj === "object" ? obj : {};
-  } catch {
-    return {};
-  }
-}
+import { useTzWarningUTC8 } from "./state/useTzWarningUTC8";
+import { TzWarningDialog } from "./components/TzWarningDialog";
 
-function saveTagColors(map: TagColors) {
-  localStorage.setItem(TAG_COLORS_KEY, JSON.stringify(map));
-}
+import { useBackup } from "./state/useBackup";
 
 export default function App({
   settings,
@@ -93,70 +77,33 @@ export default function App({
     undefined
   );
 
-  // tag colors
-  const [tagColors, setTagColors] = useState<TagColors>(() => loadTagColors());
+  // tag colors (moved to hook)
+  const { tagColors, setTagColor, replaceAll } = useTagColors();
 
-  function setTagColor(tag: string, color: string) {
-    setTagColors((prev) => {
-      const next = { ...prev };
-      if (!color) delete next[tag];
-      else next[tag] = color;
-      saveTagColors(next);
-      return next;
-    });
-  }
+  // now/time (UTC+8) (moved to hook)
+  const { nowISO, timeHM } = useNowUTC8();
 
-  // time (UTC+8)
-  const [nowISO, setNowISO] = useState(() => todayISO_UTC8());
-  const [timeHM, setTimeHM] = useState(() => timeHM_UTC8());
+  // tag edit ops (moved to hook)
+  const { renameTag, removeTag } = useTagOps({
+		items,
+		update,
+		tagColors,
+		replaceTagColors: replaceAll,
+	});
 
-  useEffect(() => {
-    function tick() {
-      setNowISO(todayISO_UTC8());
-      setTimeHM(timeHM_UTC8());
-    }
+  // timezone warning (moved to hook + component)
+  const tz = useTzWarningUTC8();
 
-    tick();
-    window.addEventListener("focus", tick);
-
-    function onVis() {
-      if (document.visibilityState === "visible") tick();
-    }
-    document.addEventListener("visibilitychange", onVis);
-
-    const id = window.setInterval(tick, 60_000);
-    return () => {
-      window.removeEventListener("focus", tick);
-      document.removeEventListener("visibilitychange", onVis);
-      window.clearInterval(id);
-    };
-  }, []);
-
-  // timezone warning dialog
-  const [tzWarningOpen, setTzWarningOpen] = useState(false);
-  const [tzInfo, setTzInfo] = useState({ timeZone: "", offsetMin: 0 });
-
-  useEffect(() => {
-    const dismissedDate = localStorage.getItem(TZ_WARNING_KEY);
-    const today = todayISO_UTC8();
-    if (dismissedDate === today) return;
-
-    const offsetMin = new Date().getTimezoneOffset(); // UTC+8 => -480
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-    setTzInfo({ timeZone, offsetMin });
-
-    if (offsetMin !== -480) setTzWarningOpen(true);
-  }, []);
-
-  // import result dialog
-  const [importResult, setImportResult] = useState<{
-    open: boolean;
-    success: boolean;
-    message: string;
-  }>({
-    open: false,
-    success: true,
-    message: "",
+  // backup export/import (moved to hook)
+  const backup = useBackup({
+    exportBackup,
+    importBackupReplace,
+    tagColors,
+    replaceTagColors: replaceAll,
+    onImportDone: () => {
+      setExtraView(null);
+      vs.backToItems();
+    },
   });
 
   // tags
@@ -221,103 +168,6 @@ export default function App({
     );
   }, [visibleActiveItems]);
 
-  function handleExport() {
-    const payload = exportBackup();
-    const wrapped = { ...payload, tagColors };
-
-    const blob = new Blob([JSON.stringify(wrapped, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `expense-cycle-backup-${new Date()
-      .toISOString()
-      .slice(0, 10)}.json`;
-    a.click();
-
-    URL.revokeObjectURL(url);
-  }
-
-  async function handleImportFile(file: File) {
-    const text = await file.text();
-    let raw: any;
-
-    try {
-      raw = JSON.parse(text);
-    } catch {
-      setImportResult({
-        open: true,
-        success: false,
-        message: "匯入失敗：不是有效的 JSON",
-      });
-      return;
-    }
-
-    // 匯入 tagColors（若檔案內有）
-    if (raw?.tagColors && typeof raw.tagColors === "object") {
-      const next = raw.tagColors as TagColors;
-      setTagColors(next);
-      saveTagColors(next);
-    }
-
-    try {
-      await importBackupReplace(raw);
-
-      setImportResult({
-        open: true,
-        success: true,
-        message: "匯入完成（已覆蓋本機資料）",
-      });
-
-      setExtraView(null);
-      vs.backToItems();
-    } catch (e) {
-      setImportResult({
-        open: true,
-        success: false,
-        message: `匯入失敗：${e instanceof Error ? e.message : String(e)}`,
-      });
-    }
-  }
-
-  // tag edit operations
-  async function renameTag(oldTag: string, newTag: string) {
-    const nextTag = newTag.trim();
-    if (!nextTag) return;
-
-    const affected = items.filter((it) => (it.tags || []).includes(oldTag));
-    for (const it of affected) {
-      const nextTags = (it.tags || []).map((t) => (t === oldTag ? nextTag : t));
-      const dedup = Array.from(new Set(nextTags));
-      await update({ ...it, tags: dedup });
-    }
-
-    setTagColors((prev) => {
-      const next = { ...prev };
-      if (next[oldTag] && !next[nextTag]) next[nextTag] = next[oldTag];
-      delete next[oldTag];
-      saveTagColors(next);
-      return next;
-    });
-  }
-
-  async function removeTag(tag: string) {
-    const affected = items.filter((it) => (it.tags || []).includes(tag));
-    for (const it of affected) {
-      const nextTags = (it.tags || []).filter((t) => t !== tag);
-      await update({ ...it, tags: nextTags });
-    }
-
-    setTagColors((prev) => {
-      const next = { ...prev };
-      delete next[tag];
-      saveTagColors(next);
-      return next;
-    });
-  }
-
   const inTagsView = extraView === "tags";
   const titleSuffix = inTagsView
     ? "（標籤）"
@@ -345,24 +195,40 @@ export default function App({
         position="fixed"
         elevation={0}
         sx={(theme) => ({
-          bgcolor:
-            theme.palette.mode === "dark"
-              ? "rgba(255,255,255,0.04)" // 在深色底上加一層淡白
-              : theme.palette.background.paper,
+					bgcolor:
+						theme.palette.mode === "dark"
+							? "rgba(255,255,255,0.04)" 	// 深色主題：保留你原本的霧面效果
+							: "#4d83daff",               // 淺色主題：指定底色
 
-          backdropFilter: "saturate(180%) blur(6px)",
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        })}
+					color: "#ffffffff",
+
+					backdropFilter:
+						theme.palette.mode === "dark"
+							? "saturate(180%) blur(6px)"
+							: "none",                 		// 淺色通常不需要霧化，可留可不留
+
+					borderBottom: "1px solid",
+					borderColor:
+						theme.palette.mode === "dark"
+							? "divider"
+							: "transparent",         			// 淺色底色固定時通常不需要底線
+				})}
       >
         <Toolbar>
-          <IconButton edge="start" sx={{ mr: 1 }} onClick={handleTopLeftClick}>
-            {inTagsView || vs.view !== "items" ? (
-              <ArrowBackIcon />
-            ) : (
-              <MenuIcon />
-            )}
-          </IconButton>
+          <IconButton
+						edge="start"
+						sx={{
+							mr: 1,
+							color: "#fff", // 強制圖示為白色
+						}}
+						onClick={handleTopLeftClick}
+					>
+						{inTagsView || vs.view !== "items" ? (
+							<ArrowBackIcon />
+						) : (
+							<MenuIcon />
+						)}
+					</IconButton>
 
           <Typography
             variant="h6"
@@ -479,8 +345,8 @@ export default function App({
             <SettingsPage
               settings={settings}
               actions={actions}
-              onExport={handleExport}
-              onImportFile={handleImportFile}
+              onExport={backup.exportToFile}
+              onImportFile={backup.importFromFile}
               origin={window.location.origin}
               dbName={DB_NAME}
               storeName={STORE_NAME}
@@ -513,85 +379,21 @@ export default function App({
         }}
       />
 
-      {/* 匯入結果 */}
-      <Dialog
-        open={importResult.open}
-        onClose={() =>
-          setImportResult((p) => ({
-            ...p,
-            open: false,
-          }))
-        }
-      >
-        <DialogTitle>
-          {importResult.success ? "匯入完成" : "匯入失敗"}
-        </DialogTitle>
+      {/* 匯入結果：改用 component */}
+      <ImportResultDialog
+        open={backup.result.open}
+        success={backup.result.success}
+        message={backup.result.message}
+        onClose={backup.closeResult}
+      />
 
-        <DialogContent>
-          <Alert
-            severity={importResult.success ? "success" : "error"}
-            sx={{ mb: 2 }}
-          >
-            {importResult.message}
-          </Alert>
-
-          {!importResult.success && (
-            <Typography variant="body2" color="text.secondary">
-              請確認檔案是否為 ExpenseCycle 匯出的備份檔，或稍後再試一次。
-            </Typography>
-          )}
-        </DialogContent>
-
-        <DialogActions>
-          <Button
-            variant="contained"
-            onClick={() =>
-              setImportResult((p) => ({
-                ...p,
-                open: false,
-              }))
-            }
-          >
-            確認
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={tzWarningOpen} onClose={() => setTzWarningOpen(false)}>
-        <DialogTitle>時區提醒</DialogTitle>
-        <DialogContent>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ whiteSpace: "pre-line" }}
-          >
-            {`偵測到你的裝置時區可能不是 UTC+8（Asia/Taipei）。
-ExpenseCycle 目前只支援以 UTC+8 計算日期與星期，裝置時區不同很可能導致日期時間有誤。`}
-          </Typography>
-
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            目前偵測：
-            <br />
-            timeZone：{tzInfo.timeZone || "（未知）"}
-            <br />
-            offset：UTC{tzInfo.offsetMin <= 0 ? "+" : "-"}
-            {String(Math.abs(tzInfo.offsetMin / 60)).padStart(2, "0")}:00
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              localStorage.setItem(TZ_WARNING_KEY, todayISO_UTC8());
-              setTzWarningOpen(false);
-            }}
-          >
-            今天不再提示
-          </Button>
-          <Button variant="contained" onClick={() => setTzWarningOpen(false)}>
-            我知道了
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* 時區提醒：改用 hook + component */}
+      <TzWarningDialog
+        open={tz.open}
+        tzInfo={tz.tzInfo}
+        onClose={tz.close}
+        onDismissToday={tz.dismissToday}
+      />
     </>
   );
 }

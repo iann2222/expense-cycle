@@ -15,6 +15,7 @@ import {
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { SubscriptionItem } from "../types/models";
+import { pickReadableTextColor } from "../utils/colors";
 
 export function ItemCard({
   item,
@@ -45,9 +46,7 @@ export function ItemCard({
     <>
       <Card variant="outlined" onClick={onClick} sx={{ cursor: "pointer" }}>
         <CardContent sx={{ pt: 1.75, pb: 1.75, "&:last-child": { pb: 1.75 } }}>
-          {/* 第一列：左（名稱+日期）｜右（金額+提醒） */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "stretch" }}>
-            {/* 左側主內容 */}
             <Box
               sx={{
                 flex: 1,
@@ -63,9 +62,7 @@ export function ItemCard({
 
               <Box sx={{ flexGrow: 1 }} />
 
-              {/* 日期顯示：xs 兩行、sm+ 一行 */}
               <Box sx={{ mt: 0.5, minWidth: 0 }}>
-                {/* xs：顯示兩行 */}
                 <Box sx={{ display: { xs: "block", sm: "none" } }}>
                   <Typography variant="body2" color="text.secondary">
                     {`可繳日：${payableISO}`}
@@ -75,7 +72,6 @@ export function ItemCard({
                   </Typography>
                 </Box>
 
-                {/* sm+：顯示單行（含 ellipsis） */}
                 <Typography
                   variant="body2"
                   color="text.secondary"
@@ -102,21 +98,29 @@ export function ItemCard({
                     overflow: "hidden",
                   }}
                 >
-                  {(item.tags || []).slice(0, 3).map((t) => (
-                    <Chip
-                      key={t}
-                      size="small"
-                      label={t}
-                      sx={{
-                        ...(tagColors[t]
-                          ? {
-                              bgcolor: tagColors[t],
-                              color: "rgba(0,0,0,0.87)",
-                            }
-                          : {}),
-                      }}
-                    />
-                  ))}
+                  {(item.tags || []).slice(0, 3).map((t) => {
+                    const c = tagColors[t];
+                    const readable = c ? pickReadableTextColor(c) : undefined;
+
+                    return (
+                      <Chip
+                        key={t}
+                        size="small"
+                        label={t}
+                        sx={{
+                          ...(c
+                            ? {
+                                bgcolor: c,
+                                color: readable,
+                                // ✅ 不加邊框、統一純色
+                                border: "none",
+                                boxShadow: "none",
+                              }
+                            : {}),
+                        }}
+                      />
+                    );
+                  })}
 
                   {(item.tags || []).length > 3 ? (
                     <Chip
@@ -129,7 +133,6 @@ export function ItemCard({
               ) : null}
             </Box>
 
-            {/* 右側欄位：spacer 推底，視覺更穩；maxWidth 做 responsive */}
             <Box
               sx={{
                 display: "flex",
@@ -143,7 +146,6 @@ export function ItemCard({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 右上：金額 */}
               <Typography
                 variant="h6"
                 sx={{
@@ -156,17 +158,15 @@ export function ItemCard({
                 {amountLabel}
               </Typography>
 
-              {/* ✅ spacer：把右下區塊推到底（比 space-between 更不跳） */}
               <Box sx={{ flexGrow: 1 }} />
 
-              {/* 右下：狀態（左） + 已繳費（右） */}
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "flex-end",
                   gap: 1,
-                  minWidth: 0, // 讓左邊狀態可被 ellipsis
+                  minWidth: 0,
                 }}
               >
                 {statusText ? (
@@ -214,7 +214,7 @@ export function ItemCard({
                       px: 1.25,
                       py: 0.25,
                       whiteSpace: "nowrap",
-                      flexShrink: 0, // 按鈕不要被壓扁
+                      flexShrink: 0,
                     }}
                   >
                     已繳費？
@@ -224,7 +224,6 @@ export function ItemCard({
             </Box>
           </Box>
 
-          {/* 備註（在第一列外面） */}
           {item.notes ? (
             <Typography
               variant="body2"
@@ -237,7 +236,6 @@ export function ItemCard({
         </CardContent>
       </Card>
 
-      {/* ✅ MUI 端確認框 */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <DialogTitle>確認繳費</DialogTitle>
         <DialogContent>
