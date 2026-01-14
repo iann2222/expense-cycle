@@ -89,7 +89,7 @@ export function AppDrawer({
   onResetViewModeToDefault: () => void;
 
   inTagsView: boolean;
-  view: "items" | "trash" | "settings" | "analysis";
+  view: "items" | "tags" | "analysis" | "settings" | "trash";
   onGoItems: () => void;
   onGoTags: () => void;
   onGoAnalysis: () => void;
@@ -98,8 +98,8 @@ export function AppDrawer({
 }) {
   const showItemTools = !inTagsView && view === "items";
 
-  // ✅ 控制「全部項目工具」展開/收起（綁在全部項目上）
-  const [itemsToolsOpen, setItemsToolsOpen] = React.useState<boolean>(true);
+  // 控制「首頁」的綁定操作展開/收起
+  const [itemsToolsOpen, setItemsToolsOpen] = React.useState(false);
 
   // 當離開 items 頁時，自動收起（避免在別頁也看到展開狀態）
   React.useEffect(() => {
@@ -209,7 +209,7 @@ export function AppDrawer({
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
-                    gap: 1,           // 同時控制水平+垂直間距
+                    gap: 1, // 同時控制水平+垂直間距
                   }}
                 >
                   {availableTags.length === 0 && (
@@ -228,18 +228,27 @@ export function AppDrawer({
                         label={tag}
                         clickable
                         color={selected ? "primary" : "default"}
-                        variant={selected ? "filled" : color ? "filled" : "outlined"}
+                        variant={
+                          selected ? "filled" : color ? "filled" : "outlined"
+                        }
                         onClick={() => onToggleTag(tag)}
                         sx={(theme) => ({
                           bgcolor: selected ? undefined : color || undefined,
-                          color: selected ? undefined : color ? "#fff" : undefined,
+                          color: selected
+                            ? undefined
+                            : color
+                            ? "#fff"
+                            : undefined,
 
                           ...(selected
                             ? {}
                             : !color && theme.palette.mode === "dark"
                             ? {
                                 bgcolor: "transparent",
-                                border: `1px solid ${alpha(theme.palette.common.white, 0.32)}`,
+                                border: `1px solid ${alpha(
+                                  theme.palette.common.white,
+                                  0.32
+                                )}`,
                                 color: theme.palette.common.white,
                               }
                             : {}),
@@ -248,7 +257,6 @@ export function AppDrawer({
                     );
                   })}
                 </Box>
-
               </Box>
 
               <Divider sx={{ my: 2 }} />

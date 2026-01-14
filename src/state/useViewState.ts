@@ -6,7 +6,9 @@ import type {
   SettingsV1,
 } from "./useSettings";
 
-export type View = "items" | "analysis" | "settings" | "trash";
+export type View = "items" | "tags" | "analysis" | "settings" | "trash";
+
+const EXIT_WINDOW_MS = 2000;
 
 export function useViewState(settings: SettingsV1) {
   const [view, setView] = React.useState<View>("items");
@@ -17,7 +19,9 @@ export function useViewState(settings: SettingsV1) {
     settings.defaultViewMode
   );
 
-  const [sortKey, setSortKey] = React.useState<SortKey>(settings.defaultSortKey);
+  const [sortKey, setSortKey] = React.useState<SortKey>(
+    settings.defaultSortKey
+  );
   const [sortOrder, setSortOrder] = React.useState<SortOrder>(
     settings.defaultSortOrder
   );
@@ -28,6 +32,11 @@ export function useViewState(settings: SettingsV1) {
 
   const viewModeTouchedRef = React.useRef(false);
   const sortTouchedRef = React.useRef(false);
+
+  // ===== Android PWA back / history =====
+  const internalNavRef = React.useRef(false); // 避免 popstate 導航造成 pushState 迴圈
+  const lastBackAtRef = React.useRef<number>(0);
+  const [backHintOpen, setBackHintOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!viewModeTouchedRef.current) setViewMode(settings.defaultViewMode);
@@ -96,6 +105,79 @@ export function useViewState(settings: SettingsV1) {
     setSelectedTags([]);
   }
 
+  function closeBackHint() {
+    setBackHintOpen(false);
+  }
+
+  /**
+   * view 變更時同步 pushState：
+   * - 讓 Android 返回鍵（popstate）能知道目前在 app 內的哪個 view
+   * - 但若這次 view 變更是「popstate 導致的內部導覽」，就不要再 push，避免迴圈
+   */
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (internalNavRef.current) {
+      internalNavRef.current = false;
+      return;
+    }
+
+    window.history.pushState({ __ec: true, view }, "", window.location.href);
+  }, [view]);
+
+  /**
+   * Android Chrome PWA（standalone）返回鍵處理（穩定版）
+   *
+   * 背景：在 PWA standalone 首頁，初始 history stack 常常無法靠 mount 時 pushState 建立「可攔截層」。
+   * 所以採用實務上最穩的策略：
+   * - 非首頁：返回鍵先回首頁，並 push 一層把使用者留在 App
+   * - 首頁：第一次返回 → 顯示提示 + pushState 把使用者留在 App
+   *         第二次（2 秒內）→ 不 push，讓系統真的退出 App
+   */
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    function onPopState(_e: PopStateEvent) {
+      // 關 drawer（避免視覺卡住）
+      setDrawerOpen(false);
+
+      // 非首頁（含 tags/analysis/settings/trash）：返回鍵 → 回首頁並補一層 history
+      if (view !== "items") {
+        internalNavRef.current = true;
+        setView("items");
+
+        window.history.pushState(
+          { __ec: true, view: "items" },
+          "",
+          window.location.href
+        );
+        return;
+      }
+
+      // ===== 以下只處理「首頁 items」 =====
+      const now = Date.now();
+      const delta = now - lastBackAtRef.current;
+
+      // 第二次返回（在窗口期內）：不再補 history，讓系統退出 PWA
+      if (delta <= EXIT_WINDOW_MS) {
+        return;
+      }
+
+      // 第一次返回：提示 + 補一層 history，把使用者留在 App
+      lastBackAtRef.current = now;
+      setBackHintOpen(true);
+
+      window.history.pushState(
+        { __ec: true, view: "items" },
+        "",
+        window.location.href
+      );
+    }
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [view]);
+
   return {
     view,
     drawerOpen,
@@ -120,5 +202,9 @@ export function useViewState(settings: SettingsV1) {
     changeSortKey,
     changeSortOrder,
     resetSortToDefault,
+
+    // Android 返回鍵提示用
+    backHintOpen,
+    closeBackHint,
   };
 }

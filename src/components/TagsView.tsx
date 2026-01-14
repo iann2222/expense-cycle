@@ -27,6 +27,7 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  TouchSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
@@ -144,6 +145,9 @@ export function TagsView({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 }, // 手機端：長按才開始拖，避免跟捲動衝突
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -287,6 +291,14 @@ export function TagsView({
                               sx={{
                                 cursor: "grab",
                                 color: "text.secondary",
+
+                                // 手機端關鍵：不要讓瀏覽器把觸控當成滾動/點擊手勢吃掉
+                                touchAction: "none",
+                                userSelect: "none",
+                                WebkitUserSelect: "none",
+
+                                // 有些手機會長按跳出選單/拖圖片等，順手關掉
+                                WebkitTouchCallout: "none",
                                 "&:active": { cursor: "grabbing" },
                               }}
                             >
@@ -306,7 +318,10 @@ export function TagsView({
                                   : theme.palette.mode === "dark"
                                   ? {
                                       bgcolor: "transparent",
-                                      border: `1px solid ${alpha(theme.palette.common.white, 0.32)}`,
+                                      border: `1px solid ${alpha(
+                                        theme.palette.common.white,
+                                        0.32
+                                      )}`,
                                       color: theme.palette.common.white,
                                     }
                                   : {}),

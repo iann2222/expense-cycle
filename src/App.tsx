@@ -10,6 +10,7 @@ import {
   Box,
   Container,
   IconButton,
+  Snackbar,
   Toolbar,
   Typography,
 } from "@mui/material";
@@ -68,9 +69,6 @@ export default function App({
 
   const vs = useViewState(settings);
 
-  // tags page state
-  const [extraView, setExtraView] = useState<"tags" | null>(null);
-
   // dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SubscriptionItem | undefined>(
@@ -78,27 +76,21 @@ export default function App({
   );
 
   // tag colors (moved to hook)
-  const {
-		tagColors,
-		setTagColor,
-		replaceAll,
-		tagOrder,
-		setTagOrder,
-	} = useTagColors();
-
+  const { tagColors, setTagColor, replaceAll, tagOrder, setTagOrder } =
+    useTagColors();
 
   // now/time (UTC+8) (moved to hook)
   const { nowISO, timeHM } = useNowUTC8();
 
   // tag edit ops (moved to hook)
   const { renameTag, removeTag } = useTagOps({
-		items,
-		update,
-		tagColors,
-		replaceTagColors: replaceAll,
-		tagOrder,
-		setTagOrder,
-	});
+    items,
+    update,
+    tagColors,
+    replaceTagColors: replaceAll,
+    tagOrder,
+    setTagOrder,
+  });
 
   // timezone warning (moved to hook + component)
   const tz = useTzWarningUTC8();
@@ -110,8 +102,7 @@ export default function App({
     tagColors,
     replaceTagColors: replaceAll,
     onImportDone: () => {
-      setExtraView(null);
-      vs.backToItems();
+      vs.goTo("items");
     },
   });
 
@@ -177,24 +168,23 @@ export default function App({
     );
   }, [visibleActiveItems]);
 
-  const inTagsView = extraView === "tags";
-  const titleSuffix = inTagsView
-    ? "（標籤）"
-    : vs.view === "trash"
-    ? "（回收桶）"
-    : vs.view === "settings"
-    ? "（設定）"
-    : "";
+  const inTagsView = vs.view === "tags";
+
+  const appTitle = (() => {
+    if (vs.view === "tags") return "標籤管理";
+    if (vs.view === "analysis") return "分析報表";
+    if (vs.view === "settings") return "設定";
+    if (vs.view === "trash") return "回收桶";
+    return "ExpenseCycle"; // items 首頁
+  })();
 
   function handleTopLeftClick() {
-    if (inTagsView) {
-      setExtraView(null);
-      return;
-    }
+    // tags / analysis / settings / trash：左上角 = 回首頁
     if (vs.view !== "items") {
-      vs.backToItems();
+      vs.goTo("items");
       return;
     }
+    // items：左上角 = 開選單
     vs.openDrawer();
   }
 
@@ -204,40 +194,32 @@ export default function App({
         position="fixed"
         elevation={0}
         sx={(theme) => ({
-					bgcolor:
-						theme.palette.mode === "dark"
-							? "rgba(255,255,255,0.04)" 	// 深色主題：保留你原本的霧面效果
-							: "#4d83daff",               // 淺色主題：指定底色
+          bgcolor:
+            theme.palette.mode === "dark"
+              ? "rgba(255,255,255,0.04)" // 深色主題：保留你原本的霧面效果
+              : "#4d83daff", // 淺色主題：指定底色
 
-					color: "#ffffffff",
+          color: "#ffffffff",
 
-					backdropFilter:
-						theme.palette.mode === "dark"
-							? "saturate(180%) blur(6px)"
-							: "none",                 		// 淺色通常不需要霧化，可留可不留
+          backdropFilter:
+            theme.palette.mode === "dark" ? "saturate(180%) blur(6px)" : "none", // 淺色通常不需要霧化，可留可不留
 
-					borderBottom: "1px solid",
-					borderColor:
-						theme.palette.mode === "dark"
-							? "divider"
-							: "transparent",         			// 淺色底色固定時通常不需要底線
-				})}
+          borderBottom: "1px solid",
+          borderColor:
+            theme.palette.mode === "dark" ? "divider" : "transparent", // 淺色底色固定時通常不需要底線
+        })}
       >
         <Toolbar>
           <IconButton
-						edge="start"
-						sx={{
-							mr: 1,
-							color: "#fff", // 強制圖示為白色
-						}}
-						onClick={handleTopLeftClick}
-					>
-						{inTagsView || vs.view !== "items" ? (
-							<ArrowBackIcon />
-						) : (
-							<MenuIcon />
-						)}
-					</IconButton>
+            edge="start"
+            sx={{
+              mr: 1,
+              color: "#fff", // 強制圖示為白色
+            }}
+            onClick={handleTopLeftClick}
+          >
+            {vs.view !== "items" ? <ArrowBackIcon /> : <MenuIcon />}
+          </IconButton>
 
           <Typography
             variant="h6"
@@ -247,7 +229,7 @@ export default function App({
               transform: "translateX(-50%)",
             }}
           >
-            ExpenseCycle{titleSuffix}
+            {appTitle}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -277,42 +259,37 @@ export default function App({
         inTagsView={inTagsView}
         view={vs.view}
         onGoItems={() => {
-          setExtraView(null);
           vs.goTo("items");
         }}
         onGoTags={() => {
-          setExtraView("tags");
-          vs.closeDrawer();
+          vs.goTo("tags");
         }}
         onGoAnalysis={() => {
-          setExtraView(null);
           vs.goTo("analysis");
         }}
         onGoSettings={() => {
-          setExtraView(null);
           vs.goTo("settings");
         }}
         onGoTrash={() => {
-          setExtraView(null);
           vs.goTo("trash");
         }}
       />
 
       <Box sx={{ py: 3 }}>
         <Container maxWidth="sm">
-          {inTagsView && (
+          {vs.view === "tags" && (
             <TagsPage
-							items={items}
-							tagColors={tagColors}
-							tagOrder={tagOrder}
-							onReorderTags={setTagOrder}
-							onSetTagColor={setTagColor}
-							onRenameTag={renameTag}
-							onRemoveTag={removeTag}
-						/>
+              items={items}
+              tagColors={tagColors}
+              tagOrder={tagOrder}
+              onReorderTags={setTagOrder}
+              onSetTagColor={setTagColor}
+              onRenameTag={renameTag}
+              onRemoveTag={removeTag}
+            />
           )}
 
-          {!inTagsView && vs.view === "items" && (
+          {vs.view === "items" && (
             <ItemsView
               loading={loading}
               items={visibleActiveItems}
@@ -339,11 +316,9 @@ export default function App({
             />
           )}
 
-          {!inTagsView && vs.view === "analysis" && (
-            <AnalysisPage items={activeItems} />
-          )}
+          {vs.view === "analysis" && <AnalysisPage items={activeItems} />}
 
-          {!inTagsView && vs.view === "trash" && (
+          {vs.view === "trash" && (
             <TrashView
               items={visibleTrashItems}
               viewMode={vs.viewMode}
@@ -352,7 +327,7 @@ export default function App({
             />
           )}
 
-          {!inTagsView && vs.view === "settings" && (
+          {vs.view === "settings" && (
             <SettingsPage
               settings={settings}
               actions={actions}
@@ -404,6 +379,14 @@ export default function App({
         tzInfo={tz.tzInfo}
         onClose={tz.close}
         onDismissToday={tz.dismissToday}
+      />
+
+      <Snackbar
+        open={vs.backHintOpen}
+        autoHideDuration={1500}
+        onClose={vs.closeBackHint}
+        message="再按一次返回鍵退出"
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </>
   );

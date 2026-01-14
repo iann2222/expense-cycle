@@ -8,10 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt", // 讓你可以控制「有更新時提示使用者」
-      includeAssets: [
-        "pwa/icon-192.png",
-        "pwa/icon-512.png",
-      ],
+      includeAssets: ["pwa/icon-192.png", "pwa/icon-512.png"],
       manifest: {
         name: "ExpenseCycle",
         short_name: "ExpenseCycle",
@@ -23,12 +20,12 @@ export default defineConfig({
         start_url: "/expense-cycle/",
         icons: [
           {
-            src: "/pwa/icon-192.png",
+            src: "pwa/icon-192.png",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/pwa/icon-512.png",
+            src: "pwa/icon-512.png",
             sizes: "512x512",
             type: "image/png",
           },
