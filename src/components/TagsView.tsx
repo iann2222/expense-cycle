@@ -103,19 +103,14 @@ function SortableTagRow({
 }
 
 const COLOR_PRESETS = [
-  "#F7620D",
-  "#F45050",
   "#E64755",
-  "#0078D7",
-  "#8E8CD5",
+  "#1C99FF",
+  "#3251deff",
   "#6B69D6",
   "#00A0C6",
-  "#00B7C3",
-  "#00B294",
   "#018574",
-  "#7A7374",
-  "#8B8686",
-  "#716D6B",
+  "#84714F",
+  "#535455cd",
 ] as const;
 
 export function TagsView({
@@ -301,11 +296,21 @@ export function TagsView({
                             <Chip
                               label={tag}
                               variant={color ? "filled" : "outlined"}
-                              sx={{
-                                bgcolor: color || undefined,
-                                color: color ? readable : undefined,
+                              sx={(theme) => ({
                                 maxWidth: 180,
-                              }}
+                                ...(color
+                                  ? {
+                                      bgcolor: color,
+                                      color: readable,
+                                    }
+                                  : theme.palette.mode === "dark"
+                                  ? {
+                                      bgcolor: "transparent",
+                                      border: `1px solid ${alpha(theme.palette.common.white, 0.32)}`,
+                                      color: theme.palette.common.white,
+                                    }
+                                  : {}),
+                              })}
                             />
 
                             <Typography variant="body2" color="text.secondary">

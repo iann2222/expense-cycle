@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  alpha,
   Box,
   Button,
   Card,
@@ -107,17 +108,23 @@ export function ItemCard({
                         key={t}
                         size="small"
                         label={t}
-                        sx={{
+                        variant={c ? "filled" : "outlined"}
+                        sx={(theme) => ({
                           ...(c
                             ? {
                                 bgcolor: c,
                                 color: readable,
-                                // ✅ 不加邊框、統一純色
                                 border: "none",
                                 boxShadow: "none",
                               }
+                            : theme.palette.mode === "dark"
+                            ? {
+                                bgcolor: "transparent",            // 透明底
+                                border: `1px solid ${alpha(theme.palette.common.white, 0.32)}`, // 框線
+                                color: theme.palette.common.white, // 白字
+                              }
                             : {}),
-                        }}
+                        })}
                       />
                     );
                   })}

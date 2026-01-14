@@ -6,6 +6,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  alpha,
   Box,
   Button,
   Chip,
@@ -229,10 +230,20 @@ export function AppDrawer({
                         color={selected ? "primary" : "default"}
                         variant={selected ? "filled" : color ? "filled" : "outlined"}
                         onClick={() => onToggleTag(tag)}
-                        sx={{
+                        sx={(theme) => ({
                           bgcolor: selected ? undefined : color || undefined,
                           color: selected ? undefined : color ? "#fff" : undefined,
-                        }}
+
+                          ...(selected
+                            ? {}
+                            : !color && theme.palette.mode === "dark"
+                            ? {
+                                bgcolor: "transparent",
+                                border: `1px solid ${alpha(theme.palette.common.white, 0.32)}`,
+                                color: theme.palette.common.white,
+                              }
+                            : {}),
+                        })}
                       />
                     );
                   })}
