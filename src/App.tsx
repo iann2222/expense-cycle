@@ -82,7 +82,6 @@ export default function App({
 		tagColors,
 		setTagColor,
 		replaceAll,
-		setTagColors,
 		tagOrder,
 		setTagOrder,
 	} = useTagColors();
