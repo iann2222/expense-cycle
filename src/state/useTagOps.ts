@@ -6,8 +6,12 @@ export function useTagOps(args: {
   update: (item: SubscriptionItem) => Promise<void>;
   tagColors: TagColors;
   replaceTagColors: (next: TagColors) => void;
+
+  tagOrder: string[];
+  setTagOrder: (next: string[]) => void;
 }) {
-  const { items, update, tagColors, replaceTagColors } = args;
+  const { items, update, tagColors, replaceTagColors, tagOrder, setTagOrder } =
+    args;
 
   async function renameTag(oldTag: string, newTag: string) {
     const nextTag = newTag.trim();
@@ -26,6 +30,12 @@ export function useTagOps(args: {
     if (nextMap[oldTag] && !nextMap[nextTag]) nextMap[nextTag] = nextMap[oldTag];
     delete nextMap[oldTag];
     replaceTagColors(nextMap);
+
+    // 3) 更新 tagOrder（並持久化）
+    if (tagOrder.length > 0) {
+      const replaced = tagOrder.map((t) => (t === oldTag ? nextTag : t));
+      setTagOrder(Array.from(new Set(replaced)));
+    }
   }
 
   async function removeTag(tag: string) {
@@ -40,6 +50,11 @@ export function useTagOps(args: {
     const nextMap: TagColors = { ...tagColors };
     delete nextMap[tag];
     replaceTagColors(nextMap);
+
+    // 3) 更新 tagOrder（並持久化）
+    if (tagOrder.length > 0) {
+      setTagOrder(tagOrder.filter((t) => t !== tag));
+    }
   }
 
   return { renameTag, removeTag };

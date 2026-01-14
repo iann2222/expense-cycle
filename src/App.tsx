@@ -78,7 +78,15 @@ export default function App({
   );
 
   // tag colors (moved to hook)
-  const { tagColors, setTagColor, replaceAll } = useTagColors();
+  const {
+		tagColors,
+		setTagColor,
+		replaceAll,
+		setTagColors,
+		tagOrder,
+		setTagOrder,
+	} = useTagColors();
+
 
   // now/time (UTC+8) (moved to hook)
   const { nowISO, timeHM } = useNowUTC8();
@@ -89,6 +97,8 @@ export default function App({
 		update,
 		tagColors,
 		replaceTagColors: replaceAll,
+		tagOrder,
+		setTagOrder,
 	});
 
   // timezone warning (moved to hook + component)
@@ -293,12 +303,14 @@ export default function App({
         <Container maxWidth="sm">
           {inTagsView && (
             <TagsPage
-              items={items}
-              tagColors={tagColors}
-              onSetTagColor={setTagColor}
-              onRenameTag={renameTag}
-              onRemoveTag={removeTag}
-            />
+							items={items}
+							tagColors={tagColors}
+							tagOrder={tagOrder}
+							onReorderTags={setTagOrder}
+							onSetTagColor={setTagColor}
+							onRenameTag={renameTag}
+							onRemoveTag={removeTag}
+						/>
           )}
 
           {!inTagsView && vs.view === "items" && (

@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   Stack,
   TextField,
   Typography,
@@ -19,6 +20,27 @@ import {
 import type { SubscriptionItem } from "../types/models";
 import { pickReadableTextColor, shiftRgb } from "../utils/colors";
 
+import DragHandleIcon from "@mui/icons-material/DragHandle";
+import type { DraggableSyntheticListeners } from "@dnd-kit/core";
+
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
 export type TagColors = Record<string, string>;
 
 function countTags(items: SubscriptionItem[]) {
@@ -26,37 +48,112 @@ function countTags(items: SubscriptionItem[]) {
   for (const it of items) {
     for (const t of it.tags || []) map.set(t, (map.get(t) || 0) + 1);
   }
-  return Array.from(map.entries())
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "zh-Hant"));
+  return map;
+}
+
+function SortableTagRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: (args: {
+    setActivatorNodeRef: (node: HTMLElement | null) => void;
+    listeners?: DraggableSyntheticListeners;
+    attributes: Record<string, any>;
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const {
+    setNodeRef,
+    setActivatorNodeRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <Box
+      ref={setNodeRef}
+      style={style}
+      sx={{
+        ...(isDragging
+          ? {
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              boxShadow: 3,
+            }
+          : {}),
+      }}
+    >
+      {children({
+        setActivatorNodeRef,
+        listeners, // ✅ 直接傳下去（可為 undefined）
+        attributes: attributes as Record<string, any>,
+        isDragging,
+      })}
+    </Box>
+  );
 }
 
 const COLOR_PRESETS = [
-  "#E56B70",
-  "#4d9d5aff",
-  "#297373",
-  "#1c99ffff",
-  "#2d4dd9ff",
-  "#7678ed",
-  "#84714F",
-  "#565656ff",
-];
+  "#F7620D",
+  "#F45050",
+  "#E64755",
+  "#0078D7",
+  "#8E8CD5",
+  "#6B69D6",
+  "#00A0C6",
+  "#00B7C3",
+  "#00B294",
+  "#018574",
+  "#7A7374",
+  "#8B8686",
+  "#716D6B",
+] as const;
 
 export function TagsView({
   items,
   tagColors,
+  tagOrder,
+  onReorderTags,
   onSetTagColor,
   onRenameTag,
   onRemoveTag,
 }: {
   items: SubscriptionItem[];
   tagColors: TagColors;
+
+  tagOrder: string[];
+  onReorderTags: (next: string[]) => void;
+
   onSetTagColor: (tag: string, color: string) => void;
   onRenameTag: (oldTag: string, newTag: string) => Promise<void>;
   onRemoveTag: (tag: string) => Promise<void>;
 }) {
   const theme = useTheme();
-  const rows = React.useMemo(() => countTags(items), [items]);
+  const countMap = React.useMemo(() => countTags(items), [items]);
+
+  // 依 tagOrder 決定顯示順序（拖動排序的來源）
+  const rows = React.useMemo(() => {
+    const order = (tagOrder || []).filter((t) => countMap.has(t));
+    return order.map((tag) => ({ tag, count: countMap.get(tag) || 0 }));
+  }, [countMap, tagOrder]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const [open, setOpen] = React.useState(false);
   const [currentTag, setCurrentTag] = React.useState<string>("");
@@ -114,6 +211,20 @@ export function TagsView({
     setRemoveConfirmOpen(false);
   }
 
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over) return;
+    const a = String(active.id);
+    const b = String(over.id);
+    if (a === b) return;
+
+    const oldIndex = tagOrder.indexOf(a);
+    const newIndex = tagOrder.indexOf(b);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    onReorderTags(arrayMove(tagOrder, oldIndex, newIndex));
+  }
+
   return (
     <Box>
       <Card variant="outlined">
@@ -132,44 +243,86 @@ export function TagsView({
               </Typography>
             )}
 
-            {rows.map(({ tag, count }) => {
-              const color = tagColors[tag];
-              const readable = color ? pickReadableTextColor(color) : undefined;
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={rows.map((r) => r.tag)}
+                strategy={verticalListSortingStrategy}
+              >
+                {rows.map(({ tag, count }) => {
+                  const color = tagColors[tag];
+                  const readable = color
+                    ? pickReadableTextColor(color)
+                    : undefined;
 
-              return (
-                <Stack
-                  key={tag}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  spacing={1}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    sx={{ minWidth: 0 }}
-                  >
-                    <Chip
-                      label={tag}
-                      variant={color ? "filled" : "outlined"}
-                      sx={{
-                        bgcolor: color || undefined,
-                        color: color ? readable : undefined,
-                        maxWidth: 180,
-                      }}
-                    />
-                    <Typography variant="body2" color="text.secondary">
-                      {count}
-                    </Typography>
-                  </Stack>
+                  return (
+                    <SortableTagRow key={tag} id={tag}>
+                      {({
+                        setActivatorNodeRef,
+                        listeners,
+                        attributes,
+                        isDragging,
+                      }) => (
+                        <Stack
+                          direction="row"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          spacing={1}
+                          sx={{
+                            px: 0.5,
+                            py: 0.25,
+                            ...(isDragging ? { opacity: 0.9 } : {}),
+                          }}
+                        >
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            sx={{ minWidth: 0 }}
+                          >
+                            {/* 拖動把手：只綁在 icon 上 */}
+                            <IconButton
+                              size="small"
+                              ref={setActivatorNodeRef}
+                              {...(listeners ?? {})}
+                              {...attributes}
+                              sx={{
+                                cursor: "grab",
+                                color: "text.secondary",
+                                "&:active": { cursor: "grabbing" },
+                              }}
+                            >
+                              <DragHandleIcon fontSize="small" />
+                            </IconButton>
 
-                  <Button size="small" onClick={() => openEditor(tag)}>
-                    編輯
-                  </Button>
-                </Stack>
-              );
-            })}
+                            <Chip
+                              label={tag}
+                              variant={color ? "filled" : "outlined"}
+                              sx={{
+                                bgcolor: color || undefined,
+                                color: color ? readable : undefined,
+                                maxWidth: 180,
+                              }}
+                            />
+
+                            <Typography variant="body2" color="text.secondary">
+                              {count}
+                            </Typography>
+                          </Stack>
+
+                          <Button size="small" onClick={() => openEditor(tag)}>
+                            編輯
+                          </Button>
+                        </Stack>
+                      )}
+                    </SortableTagRow>
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
           </Stack>
         </CardContent>
       </Card>
@@ -209,11 +362,12 @@ export function TagsView({
               const selected = tagColors[currentTag] === c;
               const textColor = pickReadableTextColor(c);
 
-              // 不用邊框：用「縮放 + 透明度 + ✓」表示選取
               const baseOpacity = selected ? 1 : 0.92;
 
               const hoverBg =
-                theme.palette.mode === "dark" ? shiftRgb(c, 0.12) : shiftRgb(c, -0.08);
+                theme.palette.mode === "dark"
+                  ? shiftRgb(c, 0.12)
+                  : shiftRgb(c, -0.08);
 
               return (
                 <Chip
@@ -228,16 +382,12 @@ export function TagsView({
                     borderRadius: 999,
                     fontWeight: 700,
                     userSelect: "none",
-
-                    // ✅ 完全不要邊框
                     border: "none",
                     boxShadow: "none",
-
                     opacity: baseOpacity,
                     transform: selected ? "scale(1.06)" : "scale(1.0)",
                     transition:
                       "transform 120ms ease, opacity 120ms ease, background-color 120ms ease",
-
                     "&:hover": {
                       bgcolor: hoverBg,
                       opacity: 1,
