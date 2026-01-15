@@ -151,7 +151,6 @@ export function ItemCard({
                 alignSelf: "stretch",
                 minHeight: 72,
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               <Typography
                 variant="h6"
@@ -215,7 +214,10 @@ export function ItemCard({
                     size="small"
                     variant="outlined"
                     color="error"
-                    onClick={() => setConfirmOpen(true)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmOpen(true);
+                    }}
                     sx={{
                       minWidth: 0,
                       px: 1.25,

@@ -382,12 +382,27 @@ export default function App({
       />
 
       <Snackbar
-        open={vs.backHintOpen}
-        autoHideDuration={1500}
-        onClose={vs.closeBackHint}
-        message="再按一次返回鍵退出"
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      />
+				open={vs.backHintOpen}
+				autoHideDuration={1500}
+				onClose={vs.closeBackHint}
+				message="再按一次返回鍵後退出"
+				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+				slotProps={{
+					content: {
+						sx: {
+							width: "auto",
+							maxWidth: "fit-content",
+							mx: "auto",
+							textAlign: "center",
+							display: "flex",
+							justifyContent: "center",
+							borderRadius: 999,
+							px: 2,
+							py: 0.5,
+						},
+					},
+				}}
+			/>
     </>
   );
 }
