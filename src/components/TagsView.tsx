@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import type { SubscriptionItem } from "../types/models";
 import { pickReadableTextColor, shiftRgb } from "../utils/colors";
+import { useModalBackHandler } from "../state/useModalBackHandler";
 
 import DragHandleIcon from "@mui/icons-material/DragHandle";
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
@@ -161,6 +162,16 @@ export function TagsView({
 
   const [removeConfirmOpen, setRemoveConfirmOpen] = React.useState(false);
   const pendingRemoveTag = currentTag;
+
+  // Android 返回鍵：標籤編輯 / 確認視窗都視為「取消」
+  useModalBackHandler(open, () => setOpen(false), "tags-edit");
+
+
+  useModalBackHandler(
+    removeConfirmOpen,
+    () => setRemoveConfirmOpen(false),
+    "tags-remove"
+  );
 
   const REMOVE_CONFIRM_TEXT = `確定要移除標籤「${pendingRemoveTag}」？
 （只會從所有項目移除該標籤，不刪除項目本身）`;

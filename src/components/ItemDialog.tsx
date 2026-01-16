@@ -23,6 +23,7 @@ import AddIcon from "@mui/icons-material/Add";
 import type { SubscriptionItem } from "../types/models";
 import { computeNextDates } from "../utils/recurrence";
 import { safeUUID } from "../utils/uuid";
+import { useModalBackHandler } from "../state/useModalBackHandler";
 
 const TZ = "Asia/Taipei";
 
@@ -492,6 +493,8 @@ export function ItemDialog({
     setDirtyConfirmOpen(true);
   }
 
+  useModalBackHandler(open, requestCloseFromBackdropOrEsc, "item-dialog");
+
   const isEdit = !!initialItem;
   const shouldAutoSelectName = !isMobile && name.trim() === "(未命名)";
 
@@ -540,7 +543,7 @@ export function ItemDialog({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 fullWidth
-                placeholder="例如：3200"
+                placeholder="例如：700"
                 slotProps={{
                   htmlInput: { min: 0, inputMode: "numeric" },
                 }}
@@ -621,7 +624,7 @@ export function ItemDialog({
 
             <Box>
               <TextField
-                label="標籤（以 Enter 或右側 + 新增）"
+                label={isMobile ? "標籤（以右側 + 新增）" : "標籤（以 Enter 或右側 + 新增）"}
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {

@@ -7,6 +7,7 @@ import {
   DialogTitle,
   Typography,
 } from "@mui/material";
+import { useModalBackHandler } from "../state/useModalBackHandler";
 
 export function ImportResultDialog({
   open,
@@ -19,12 +20,15 @@ export function ImportResultDialog({
   message: string;
   onClose: () => void;
 }) {
+  // Android 返回鍵：直接關閉
+  useModalBackHandler(open, onClose, "import-result");
+
   return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogTitle>{success ? "匯入完成" : "匯入失敗"}</DialogTitle>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>{success ? "匯入成功" : "匯入失敗"}</DialogTitle>
 
       <DialogContent>
-        <Alert severity={success ? "success" : "error"} sx={{ mb: 2 }}>
+        <Alert severity={success ? "success" : "error"} sx={{ mb: 1.5 }}>
           {message}
         </Alert>
 

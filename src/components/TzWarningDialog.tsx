@@ -6,6 +6,7 @@ import {
   DialogTitle,
   Typography,
 } from "@mui/material";
+import { useModalBackHandler } from "../state/useModalBackHandler";
 
 export function TzWarningDialog({
   open,
@@ -14,33 +15,32 @@ export function TzWarningDialog({
   onDismissToday,
 }: {
   open: boolean;
-  tzInfo: { timeZone: string; offsetMin: number };
+  // ✅ 跟你 useTzWarningUTC8 的 tzInfo 對齊
+  tzInfo: { timeZone: string; offsetMin: number } | null;
   onClose: () => void;
   onDismissToday: () => void;
 }) {
-  const sign = tzInfo.offsetMin <= 0 ? "+" : "-";
-  const hh = String(Math.abs(tzInfo.offsetMin / 60)).padStart(2, "0");
+  // Android 返回鍵：直接關閉
+  useModalBackHandler(open, onClose, "tz-warning");
+
+  if (!tzInfo) return null;
+
+  const sign = tzInfo.offsetMin >= 0 ? "+" : "-";
+  const abs = Math.abs(tzInfo.offsetMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+  const mm = String(abs % 60).padStart(2, "0");
 
   return (
-    <Dialog open={open} onClose={onClose}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>時區提醒</DialogTitle>
-      <DialogContent>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ whiteSpace: "pre-line" }}
-        >
-          {`偵測到你的裝置時區可能不是 UTC+8（Asia/Taipei）。
-ExpenseCycle 目前只支援以 UTC+8 計算日期與星期，裝置時區不同很可能導致日期時間有誤。`}
-        </Typography>
 
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          目前偵測：
-          <br />
-          timeZone：{tzInfo.timeZone || "（未知）"}
-          <br />
+      <DialogContent>
+        <Typography variant="body2">
+          目前偵測到你的裝置時區為：{tzInfo.timeZone}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           offset：UTC{sign}
-          {hh}:00
+          {hh}:{mm}
         </Typography>
       </DialogContent>
 
