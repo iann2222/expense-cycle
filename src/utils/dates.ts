@@ -30,3 +30,22 @@ export function diffDays(fromISO: string, toISO: string) {
 
   return Math.round((b - a) / 86400000);
 }
+
+/** 加減天數（以 UTC+8 的「日期」為基準回傳 YYYY-MM-DD） */
+export function addDaysISO_UTC8(iso: string, days: number) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return todayISO_UTC8();
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+
+  // 用 UTC 中午當錨點避免落在時區邊界，之後再用 Asia/Taipei 格式化成日期。
+  const base = Date.UTC(y, mo - 1, d, 12, 0, 0);
+  const next = base + days * 86400000;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(next));
+}

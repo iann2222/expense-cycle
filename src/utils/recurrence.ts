@@ -81,8 +81,13 @@ export function nextOccurrenceISO(
   return cur;
 }
 
-function addCycleClamped(iso: string, cycle: SubscriptionItem["cycle"], n: number): ISODate {
-  if (n <= 0) return iso as ISODate;
+function addCycleClamped(
+  iso: string,
+  cycle: SubscriptionItem["cycle"],
+  n: number
+): ISODate {
+  if (n === 0) return iso as ISODate;
+  // Date#setMonth 支援負數月份，因此 addMonthsClamped/addYearsClamped 也自然支援 n < 0。
   return cycle === "monthly" ? addMonthsClamped(iso, n) : addYearsClamped(iso, n);
 }
 
@@ -120,13 +125,12 @@ export function computeNextDates(item: SubscriptionItem, fromISO: string) {
   // payable 對齊：找「<= due 的最近一次 payable」
   let payable = item.payableFromISO as ISODate;
 
-  // 先把 payable 粗略推到接近 due（避免 payable 跟 due 差距太大時跑很久）
-  // 這裡用 while 的方式仍然安全，因為月/年都可比較 ISO 字串
-  // 目標：讓 payable 逼近 due，但不要超過 due
   if (payable > due) {
     // payable 不應該在 due 之後；往回一個週期直到 <= due
-    // （由於我們只有 addCycle，這裡用最多 2400 次的往後推策略會更複雜；
-    //  簡化作法：不做回推，改成先用 payable 自己的 nextOccurrence 找 <=due 的最近值）
+    // 可能來自匯入/手動輸入不乾淨資料：這樣能把 payable 對齊回 due 所在期別
+    for (let i = 0; i < 2400 && payable > due; i++) {
+      payable = addCycleClamped(payable, cycle, -1);
+    }
   }
 
   // 用「往後推」找到 <= due 的最大 payable

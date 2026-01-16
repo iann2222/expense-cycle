@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SubscriptionItem } from "../types/models";
+import { addDaysISO_UTC8, todayISO_UTC8 } from "../utils/dates";
 
 export const DB_NAME = "expense-cycle-db";
 export const STORE_NAME = "items";
@@ -19,19 +20,6 @@ function openDB(): Promise<IDBDatabase> {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
-}
-
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-}
-
-function addDaysISO(iso: string, days: number) {
-  const d = new Date(iso);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 async function getAllItems(): Promise<SubscriptionItem[]> {
@@ -92,7 +80,7 @@ export function useItems() {
   // 初次載入：讀 DB + 清理過期（>30天）回收桶資料
   useEffect(() => {
     (async () => {
-      const today = todayISO();
+      const today = todayISO_UTC8();
       const all = await getAllItems();
 
       const expired = all.filter((it) => it.purgeAfterISO && it.purgeAfterISO < today);
@@ -120,11 +108,11 @@ export function useItems() {
     const target = items.find((x) => x.id === id);
     if (!target) return;
 
-    const today = todayISO();
+    const today = todayISO_UTC8();
     const deleted: SubscriptionItem = {
       ...target,
       deletedAtISO: today,
-      purgeAfterISO: addDaysISO(today, 30),
+      purgeAfterISO: addDaysISO_UTC8(today, 30),
     };
 
     await putItem(deleted);
