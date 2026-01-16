@@ -119,8 +119,11 @@ export function ItemCard({
                               }
                             : theme.palette.mode === "dark"
                             ? {
-                                bgcolor: "transparent",            // 透明底
-                                border: `1px solid ${alpha(theme.palette.common.white, 0.32)}`, // 框線
+                                bgcolor: "transparent", // 透明底
+                                border: `1px solid ${alpha(
+                                  theme.palette.common.white,
+                                  0.32
+                                )}`, // 框線
                                 color: theme.palette.common.white, // 白字
                               }
                             : {}),
@@ -155,10 +158,9 @@ export function ItemCard({
               <Typography
                 variant="h6"
                 sx={{
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: "100%",
+                  whiteSpace: "nowrap", // 不換行
+                  overflow: "visible", // 不要自己截斷
+                  textOverflow: "clip",
                 }}
               >
                 {amountLabel}
