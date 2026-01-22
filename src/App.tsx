@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SubscriptionItem } from "./types/models";
 import type { SettingsV1 } from "./state/useSettings";
 import { useItems, DB_NAME, STORE_NAME } from "./state/useItems";
@@ -68,6 +68,20 @@ export default function App({
   } = useItems();
 
   const vs = useViewState(settings);
+
+  // 動態更新瀏覽器/Android 狀態列顏色（theme-color）
+  useEffect(() => {
+    const meta = document.querySelector(
+      'meta[name="theme-color"]'
+    ) as HTMLMetaElement | null;
+
+    if (!meta) return;
+
+    meta.setAttribute(
+      "content",
+      settings.themeMode === "dark" ? "#121212" : "#1976d2"
+    );
+  }, [settings.themeMode]);
 
   // dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -382,27 +396,27 @@ export default function App({
       />
 
       <Snackbar
-				open={vs.backHintOpen}
-				autoHideDuration={1500}
-				onClose={vs.closeBackHint}
-				message="再按一次返回鍵後退出"
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				slotProps={{
-					content: {
-						sx: {
-							width: "auto",
-							maxWidth: "fit-content",
-							mx: "auto",
-							textAlign: "center",
-							display: "flex",
-							justifyContent: "center",
-							borderRadius: 999,
-							px: 2,
-							py: 0.5,
-						},
-					},
-				}}
-			/>
+        open={vs.backHintOpen}
+        autoHideDuration={1500}
+        onClose={vs.closeBackHint}
+        message="再按一次返回鍵後退出"
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        slotProps={{
+          content: {
+            sx: {
+              width: "auto",
+              maxWidth: "fit-content",
+              mx: "auto",
+              textAlign: "center",
+              display: "flex",
+              justifyContent: "center",
+              borderRadius: 999,
+              px: 2,
+              py: 0.5,
+            },
+          },
+        }}
+      />
     </>
   );
 }
