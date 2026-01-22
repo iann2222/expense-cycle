@@ -234,16 +234,7 @@ export function ItemCard({
               </Box>
             </Box>
           </Box>
-
-          {item.notes ? (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ mt: 1, whiteSpace: "pre-wrap" }}
-            >
-              {item.notes}
-            </Typography>
-          ) : null}
+          
         </CardContent>
       </Card>
 
