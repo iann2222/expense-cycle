@@ -27,6 +27,7 @@ import { AnalysisPage } from "./views/AnalysisPage";
 import { matchesSearch, matchesTagsOR } from "./utils/search";
 import { compareItemsWithNext, type NextDates } from "./utils/sort";
 import { SettingsPage } from "./views/SettingsPage";
+import { toMonthlyAmount, toYearlyAmount } from "./utils/money";
 
 import { useTagColors } from "./state/useTagColors";
 import { useTagOps } from "./state/useTagOps";
@@ -72,21 +73,21 @@ export default function App({
   // 動態更新瀏覽器/Android 狀態列顏色（theme-color）
   useEffect(() => {
     const meta = document.querySelector(
-      'meta[name="theme-color"]'
+      'meta[name="theme-color"]',
     ) as HTMLMetaElement | null;
 
     if (!meta) return;
 
     meta.setAttribute(
       "content",
-      settings.themeMode === "dark" ? "#121212" : "#1976d2"
+      settings.themeMode === "dark" ? "#121212" : "#1976d2",
     );
   }, [settings.themeMode]);
 
   // dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SubscriptionItem | undefined>(
-    undefined
+    undefined,
   );
 
   // tag colors (moved to hook)
@@ -144,7 +145,7 @@ export default function App({
       .filter((it) => matchesTagsOR(it, vs.selectedTags))
       .slice()
       .sort((a, b) =>
-        compareItemsWithNext(a, b, vs.sortKey, vs.sortOrder, nextDateMap)
+        compareItemsWithNext(a, b, vs.sortKey, vs.sortOrder, nextDateMap),
       );
   }, [
     activeItems,
@@ -159,7 +160,7 @@ export default function App({
     return trashItems
       .slice()
       .sort((a, b) =>
-        (b.deletedAtISO || "").localeCompare(a.deletedAtISO || "")
+        (b.deletedAtISO || "").localeCompare(a.deletedAtISO || ""),
       );
   }, [trashItems]);
 
@@ -168,8 +169,8 @@ export default function App({
     return Math.round(
       visibleActiveItems.reduce(
         (acc, it) => acc + (it.cycle === "monthly" ? it.amount : 0),
-        0
-      )
+        0,
+      ),
     );
   }, [visibleActiveItems]);
 
@@ -177,8 +178,20 @@ export default function App({
     return Math.round(
       visibleActiveItems.reduce(
         (acc, it) => acc + (it.cycle === "yearly" ? it.amount : 0),
-        0
-      )
+        0,
+      ),
+    );
+  }, [visibleActiveItems]);
+
+  const totalMonthlyEq = useMemo(() => {
+    return Math.round(
+      visibleActiveItems.reduce((acc, it) => acc + toMonthlyAmount(it), 0),
+    );
+  }, [visibleActiveItems]);
+
+  const totalYearlyEq = useMemo(() => {
+    return Math.round(
+      visibleActiveItems.reduce((acc, it) => acc + toYearlyAmount(it), 0),
     );
   }, [visibleActiveItems]);
 
@@ -314,6 +327,8 @@ export default function App({
               viewMode={vs.viewMode}
               totalMonthlyRaw={totalMonthlyRaw}
               totalYearlyRaw={totalYearlyRaw}
+              totalMonthlyEq={totalMonthlyEq}
+              totalYearlyEq={totalYearlyEq}
               onClickItem={(it) => {
                 setEditing(it);
                 setDialogOpen(true);

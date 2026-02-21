@@ -633,12 +633,6 @@ export function ItemDialog({
                     addTagFromInput();
                   }
                 }}
-                onKeyUp={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTagFromInput();
-                  }
-                }}
                 fullWidth
                 slotProps={{
                   input: {

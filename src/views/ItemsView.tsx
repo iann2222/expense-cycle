@@ -25,6 +25,8 @@ export function ItemsView({
   viewMode,
   totalMonthlyRaw,
   totalYearlyRaw,
+  totalMonthlyEq,
+  totalYearlyEq,
   onClickItem,
   onAdd,
   onMarkPaid, // ✅ A) 新增
@@ -39,6 +41,8 @@ export function ItemsView({
 
   totalMonthlyRaw: number;
   totalYearlyRaw: number;
+  totalMonthlyEq: number;
+  totalYearlyEq: number;
 
   onClickItem: (item: SubscriptionItem) => void;
   onAdd: () => void;
@@ -67,19 +71,11 @@ export function ItemsView({
             </Typography>
           ) : viewMode === "monthly" ? (
             <Typography variant="h5">
-              {formatNTD(
-                Math.round(
-                  items.reduce((acc, it) => acc + toMonthlyAmount(it), 0)
-                )
-              )}
+              {formatNTD(totalMonthlyEq)}
             </Typography>
           ) : (
             <Typography variant="h5">
-              {formatNTD(
-                Math.round(
-                  items.reduce((acc, it) => acc + toYearlyAmount(it), 0)
-                )
-              )}
+              {formatNTD(totalYearlyEq)}
             </Typography>
           )}
         </CardContent>

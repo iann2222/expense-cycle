@@ -17,12 +17,12 @@ import {
 type AnalysisMode = "monthly" | "yearly";
 
 export function AnalysisPage({ items }: { items: SubscriptionItem[] }) {
-  // ✅ 分析頁自己的口徑（不影響首頁 viewMode）
+  // 分析頁自己的口徑（不影響首頁 viewMode）
   const [mode, setMode] = React.useState<AnalysisMode>("monthly");
 
-  // ✅ 分析頁暫時排除的項目（只在本頁生效）
+  // 分析頁暫時排除的項目（只在本頁生效）
   const [excludedIds, setExcludedIds] = React.useState<Set<string>>(
-    () => new Set()
+    () => new Set(),
   );
 
   const rows = React.useMemo(() => {
@@ -46,19 +46,34 @@ export function AnalysisPage({ items }: { items: SubscriptionItem[] }) {
     return list;
   }, [items, mode, excludedIds]);
 
+  // 清理不存在的 id，避免幽靈排除
+  React.useEffect(() => {
+    setExcludedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const existing = new Set(rows.map((r) => r.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (existing.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [rows]);
+
   const includedRows = React.useMemo(
     () => rows.filter((r) => !r.excluded),
-    [rows]
+    [rows],
   );
 
   const total = React.useMemo(
     () => includedRows.reduce((acc, r) => acc + r.amount, 0),
-    [includedRows]
+    [includedRows],
   );
 
   const maxAmount = React.useMemo(
     () => (includedRows.length ? includedRows[0].amount : 0),
-    [includedRows]
+    [includedRows],
   );
 
   function toggleExclude(id: string) {
@@ -156,7 +171,8 @@ export function AnalysisPage({ items }: { items: SubscriptionItem[] }) {
               const ratioTotal = included && total > 0 ? r.amount / total : 0;
 
               // bar 長度以「目前納入統計的最大值」做相對比例（更直覺）
-              const ratioMax = included && maxAmount > 0 ? r.amount / maxAmount : 0;
+              const ratioMax =
+                included && maxAmount > 0 ? r.amount / maxAmount : 0;
 
               return (
                 <Box
