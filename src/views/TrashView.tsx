@@ -1,7 +1,18 @@
 import type { DefaultViewMode } from "../state/useSettings";
 import type { SubscriptionItem } from "../types/models";
 
-import { Button, Card, CardContent, Stack, Typography } from "@mui/material";
+import { useState } from "react";
+import {
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  Typography,
+} from "@mui/material";
 import {
   formatNTD,
   formatOriginalLabel,
@@ -20,6 +31,10 @@ export function TrashView({
   onRestore: (id: string) => void;
   onRemoveForever: (id: string) => void;
 }) {
+  const [pendingRemove, setPendingRemove] = useState<SubscriptionItem | null>(
+    null,
+  );
+
   return (
     <Stack spacing={2}>
       {items.map((item) => {
@@ -57,11 +72,7 @@ export function TrashView({
                 <Button
                   color="error"
                   variant="outlined"
-                  onClick={() => {
-                    if (confirm("確定永久刪除？此動作無法復原")) {
-                      onRemoveForever(item.id);
-                    }
-                  }}
+                  onClick={() => setPendingRemove(item)}
                 >
                   永久刪除
                 </Button>
@@ -70,6 +81,35 @@ export function TrashView({
           </Card>
         );
       })}
+
+      <Dialog
+        open={!!pendingRemove}
+        onClose={() => setPendingRemove(null)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>確定永久刪除？</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            永久刪除後將「無法復原」，請小心確認！
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingRemove(null)}>取消</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => {
+              if (!pendingRemove) return;
+              onRemoveForever(pendingRemove.id);
+              setPendingRemove(null);
+            }}
+            autoFocus
+          >
+            永久刪除
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
