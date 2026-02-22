@@ -19,6 +19,13 @@ function Root() {
         palette: {
           mode: settings.themeMode,
         },
+        components: {
+          MuiDialog: {
+            styleOverrides: {
+              paper: { boxShadow: "none" },
+            },
+          },
+        },
       }),
     [settings.themeMode]
   );
