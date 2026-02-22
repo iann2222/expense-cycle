@@ -6,11 +6,13 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -34,6 +36,8 @@ export function TrashView({
   const [pendingRemove, setPendingRemove] = useState<SubscriptionItem | null>(
     null,
   );
+  const [viewingItem, setViewingItem] = useState<SubscriptionItem | null>(null);
+  const [viewingOpen, setViewingOpen] = useState(false);
 
   return (
     <Stack spacing={2}>
@@ -45,7 +49,15 @@ export function TrashView({
         else amountLabel = formatNTD(Math.round(toYearlyAmount(item)));
 
         return (
-          <Card key={item.id} variant="outlined">
+          <Card
+            key={item.id}
+            variant="outlined"
+            onClick={() => {
+              setViewingItem(item);
+              setViewingOpen(true);
+            }}
+            sx={{ cursor: "pointer" }}
+          >
             <CardContent>
               <Stack
                 direction="row"
@@ -66,13 +78,22 @@ export function TrashView({
               </Typography>
 
               <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                <Button variant="outlined" onClick={() => onRestore(item.id)}>
+                <Button
+                  variant="outlined"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestore(item.id);
+                  }}
+                >
                   還原
                 </Button>
                 <Button
                   color="error"
                   variant="outlined"
-                  onClick={() => setPendingRemove(item)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPendingRemove(item);
+                  }}
                 >
                   永久刪除
                 </Button>
@@ -108,6 +129,107 @@ export function TrashView({
           >
             永久刪除
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={viewingOpen}
+        onClose={() => setViewingOpen(false)}
+        TransitionProps={{
+          onExited: () => setViewingItem(null),
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>項目明細（回收桶）</DialogTitle>
+        <DialogContent>
+          {viewingItem ? (
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="項目名稱"
+                value={viewingItem.name}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
+
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  label="金額"
+                  value={formatNTD(viewingItem.amount)}
+                  fullWidth
+                  slotProps={{ input: { readOnly: true } }}
+                />
+                <TextField
+                  label="週期"
+                  value={viewingItem.cycle === "monthly" ? "每月" : "每年"}
+                  sx={{ width: 140, flexShrink: 0 }}
+                  slotProps={{ input: { readOnly: true } }}
+                />
+              </Stack>
+
+              <TextField
+                label="可繳日"
+                value={viewingItem.payableFromISO}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
+
+              <TextField
+                label="截止日"
+                value={viewingItem.dueDateISO}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
+
+              <TextField
+                label="付款方式"
+                value={viewingItem.paymentMethod || "—"}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
+
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  標籤
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                  {viewingItem.tags?.length ? (
+                    viewingItem.tags.map((t) => <Chip key={t} label={t} />)
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      —
+                    </Typography>
+                  )}
+                </Stack>
+              </Stack>
+
+              <TextField
+                label="備註"
+                value={viewingItem.notes || ""}
+                fullWidth
+                multiline
+                minRows={1}
+                slotProps={{ input: { readOnly: true } }}
+              />
+
+              <TextField
+                label="刪除日"
+                value={viewingItem.deletedAtISO || "—"}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
+
+              <TextField
+                label="永久刪除日"
+                value={viewingItem.purgeAfterISO || "—"}
+                fullWidth
+                slotProps={{ input: { readOnly: true } }}
+              />
+            </Stack>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewingOpen(false)}>關閉</Button>
         </DialogActions>
       </Dialog>
     </Stack>
