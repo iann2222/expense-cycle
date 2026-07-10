@@ -88,13 +88,11 @@ function DateFieldPopover({
   valueISO,
   onChangeISO,
   showWeekdayInDayPicker,
-  disabled,
 }: {
   label: string;
   valueISO: string;
   onChangeISO: (iso: string) => void;
   showWeekdayInDayPicker: boolean;
-  disabled?: boolean;
 }) {
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const { y, m, d } = React.useMemo(() => parseISO(valueISO), [valueISO]);
@@ -115,7 +113,6 @@ function DateFieldPopover({
   );
 
   function open(e: React.MouseEvent<HTMLElement>) {
-    if (disabled) return;
     setAnchorEl(e.currentTarget);
   }
   function close() {
@@ -144,7 +141,6 @@ function DateFieldPopover({
         label={label}
         value={display}
         fullWidth
-        disabled={disabled}
         slotProps={{
           input: { readOnly: true },
         }}
@@ -229,7 +225,6 @@ export function ItemDialog({
   onMoveToTrash,
   showWeekdayInDayPicker,
   nowISO,
-  readOnly,
 }: {
   open: boolean;
   initialItem?: SubscriptionItem;
@@ -238,11 +233,9 @@ export function ItemDialog({
   onMoveToTrash: (id: string) => void;
   showWeekdayInDayPicker: boolean;
   nowISO: string;
-  readOnly?: boolean;
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const isReadOnly = !!readOnly;
 
   const [name, setName] = React.useState("");
   const [amount, setAmount] = React.useState<string>("");
@@ -493,10 +486,6 @@ export function ItemDialog({
   }
 
   function requestCloseFromBackdropOrEsc() {
-    if (isReadOnly) {
-      onClose();
-      return;
-    }
     if (!isDirty()) {
       onClose();
       return;
@@ -540,7 +529,6 @@ export function ItemDialog({
               fullWidth
               autoFocus={shouldAutoSelectName}
               inputRef={nameInputRef}
-              disabled={isReadOnly}
               onFocus={(e) => {
                 if (name.trim() === "(未命名)") {
                   requestAnimationFrame(() => e.target.select());
@@ -556,7 +544,6 @@ export function ItemDialog({
                 onChange={(e) => setAmount(e.target.value)}
                 fullWidth
                 placeholder="例如：700"
-                disabled={isReadOnly}
                 slotProps={{
                   htmlInput: { min: 0, inputMode: "numeric" },
                 }}
@@ -570,7 +557,6 @@ export function ItemDialog({
                   setCycle(e.target.value as "monthly" | "yearly")
                 }
                 sx={{ width: 140, flexShrink: 0 }}
-                disabled={isReadOnly}
               >
                 <MenuItem value="monthly">每月</MenuItem>
                 <MenuItem value="yearly">每年</MenuItem>
@@ -582,7 +568,6 @@ export function ItemDialog({
               valueISO={payableFromISO}
               onChangeISO={setPayableFromISO}
               showWeekdayInDayPicker={showWeekdayInDayPicker}
-              disabled={isReadOnly}
             />
 
             <DateFieldPopover
@@ -590,7 +575,6 @@ export function ItemDialog({
               valueISO={dueDateISO}
               onChangeISO={setDueDateISO}
               showWeekdayInDayPicker={showWeekdayInDayPicker}
-              disabled={isReadOnly}
             />
 
             <Divider />
@@ -607,7 +591,6 @@ export function ItemDialog({
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   fullWidth
                   helperText="例如：主動繳款、信用卡自動扣繳"
-                  disabled={isReadOnly}
                 />
               </Box>
 
@@ -617,7 +600,6 @@ export function ItemDialog({
                     <Switch
                       checked={needsAttention}
                       onChange={(e) => setNeedsAttention(e.target.checked)}
-                      disabled={isReadOnly}
                     />
                   }
                   label="即將到期警示"
@@ -645,9 +627,7 @@ export function ItemDialog({
                 label={isMobile ? "標籤（以右側 + 新增）" : "標籤（以 Enter 或右側 + 新增）"}
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
-                disabled={isReadOnly}
                 onKeyDown={(e) => {
-                  if (isReadOnly) return;
                   if (e.key === "Enter") {
                     e.preventDefault();
                     addTagFromInput();
@@ -661,7 +641,6 @@ export function ItemDialog({
                         size="small"
                         onClick={addTagFromInput}
                         edge="end"
-                        disabled={isReadOnly}
                       >
                         <AddIcon fontSize="small" />
                       </IconButton>
@@ -680,10 +659,8 @@ export function ItemDialog({
                   <Chip
                     key={t}
                     label={t}
-                    onDelete={
-                      isReadOnly
-                        ? undefined
-                        : () => setTags((prev) => prev.filter((x) => x !== t))
+                    onDelete={() =>
+                      setTags((prev) => prev.filter((x) => x !== t))
                     }
                     sx={{ mb: 1 }}
                   />
@@ -698,32 +675,25 @@ export function ItemDialog({
               fullWidth
               multiline
               minRows={1}
-              disabled={isReadOnly}
             />
           </Stack>
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          {isReadOnly ? (
-            <Button onClick={onClose}>關閉</Button>
-          ) : (
-            <>
-              {isEdit && (
-                <Button color="error" onClick={() => setTrashConfirmOpen(true)}>
-                  移除
-                </Button>
-              )}
-
-              <Box sx={{ flex: 1 }} />
-
-              <Stack direction="row" spacing={1} justifyContent="flex-end">
-                <Button onClick={onClose}>取消</Button>
-                <Button variant="contained" onClick={handleSaveClick}>
-                  儲存
-                </Button>
-              </Stack>
-            </>
+          {isEdit && (
+            <Button color="error" onClick={() => setTrashConfirmOpen(true)}>
+              移除
+            </Button>
           )}
+
+          <Box sx={{ flex: 1 }} />
+
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button onClick={onClose}>取消</Button>
+            <Button variant="contained" onClick={handleSaveClick}>
+              儲存
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 
