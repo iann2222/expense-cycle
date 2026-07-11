@@ -125,11 +125,51 @@ ExpenseCycle 是一個以「週期性支出 / 訂閱制費用」為核心的個�
 
 ---
 
+## 常用指令
+
+### `npm run dev`
+
+啟動 Vite 本機開發伺服器，用於開發與瀏覽器測試。
+
+預設設定會使用 `vite.config.ts` 中的開發伺服器設定；目前可用瀏覽器開啟本機網址進行測試。
+
+### `npm run build`
+
+執行 TypeScript 檢查並產生正式部署用檔案。
+
+流程包含：
+
+- `tsc -b`：檢查 TypeScript 型別與專案建置設定
+- `vite build`：打包前端程式並輸出到 `dist/`
+- PWA 相關檔案也會在 build 時產生
+
+設定頁顯示的版本號會在 build 時產生，格式為目前 Git commit 的短 SHA；若 build 當下工作目錄有未提交變更，會顯示 `-dirty`。
+
+### `npm run deploy`
+
+部署目前 build 出來的 `dist/` 到 GitHub Pages 使用的 `gh-pages` 分支。
+
+此指令會先執行 `predeploy`，也就是先跑：
+
+```powershell
+npm run build
+```
+
+再執行：
+
+```powershell
+gh-pages -d dist
+```
+
+建議部署前先確認本機修改已 commit，避免 GitHub Pages 上的內容包含未提交變更但無法對應到明確的原始碼 commit。
+
+---
+
 ## 開發階段定位
 
 目前專案處於：
 
-👉 **功能原型 → 可用工具的過渡階段**
+**功能原型 → 可用工具的過渡階段**
 
 重點優先順序：
 

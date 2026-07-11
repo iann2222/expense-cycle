@@ -307,6 +307,16 @@ export function SettingsView({
         </CardContent>
       </Card>
 
+      {/* 版本 */}
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="h6">版本</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            建置對應 commit SHA：{__APP_VERSION__}
+          </Typography>
+        </CardContent>
+      </Card>
+
       <Box />
     </Stack>
   );

@@ -1,9 +1,28 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { execSync } from "node:child_process";
+
+function getAppVersion() {
+  try {
+    const sha = execSync("git rev-parse --short HEAD", {
+      encoding: "utf8",
+    }).trim();
+    const dirty = execSync("git status --porcelain", {
+      encoding: "utf8",
+    }).trim();
+
+    return dirty ? `${sha}-dirty` : sha;
+  } catch {
+    return "dev";
+  }
+}
 
 export default defineConfig({
   base: "/expense-cycle/",
+  define: {
+    __APP_VERSION__: JSON.stringify(getAppVersion()),
+  },
   plugins: [
     react(),
     VitePWA({
