@@ -56,6 +56,7 @@ export default function App({
 }) {
   const {
     loading,
+    loadError,
     items,
     activeItems,
     trashItems,
@@ -319,6 +320,7 @@ export default function App({
           {vs.view === "items" && (
             <ItemsView
               loading={loading}
+              loadError={loadError}
               items={visibleActiveItems}
               nowISO={nowISO}
               nextDateMap={nextDateMap}

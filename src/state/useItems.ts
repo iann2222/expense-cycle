@@ -172,21 +172,30 @@ function validateBackupPayload(payload: BackupPayload): SubscriptionItem[] {
 export function useItems() {
   const [items, setItems] = useState<SubscriptionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // 初次載入：讀 DB + 清理過期（>30天）回收桶資料
   useEffect(() => {
     (async () => {
-      const today = todayISO_UTC8();
-      const all = await getAllItems();
+      try {
+        setLoadError(null);
 
-      const expired = all.filter((it) => it.purgeAfterISO && it.purgeAfterISO < today);
-      if (expired.length > 0) {
-        await Promise.all(expired.map((it) => deleteItem(it.id)));
+        const today = todayISO_UTC8();
+        const all = await getAllItems();
+
+        const expired = all.filter((it) => it.purgeAfterISO && it.purgeAfterISO < today);
+        if (expired.length > 0) {
+          await Promise.all(expired.map((it) => deleteItem(it.id)));
+        }
+
+        const kept = all.filter((it) => !(it.purgeAfterISO && it.purgeAfterISO < today));
+        setItems(kept);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setLoadError(`本機資料載入失敗：${msg}`);
+      } finally {
+        setLoading(false);
       }
-
-      const kept = all.filter((it) => !(it.purgeAfterISO && it.purgeAfterISO < today));
-      setItems(kept);
-      setLoading(false);
     })();
   }, []);
 
@@ -253,6 +262,7 @@ export function useItems() {
 
   return {
     loading,
+    loadError,
     items,
     activeItems: items.filter((x) => !x.deletedAtISO),
     trashItems: items.filter((x) => !!x.deletedAtISO),

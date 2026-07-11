@@ -3,7 +3,7 @@ import type { SubscriptionItem } from "../types/models";
 import type { TagColors } from "../components/TagsView";
 import type { NextDates } from "../utils/sort";
 
-import { Card, CardContent, Fab, Stack, Typography } from "@mui/material";
+import { Alert, Card, CardContent, Fab, Stack, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 
 import { ItemCard } from "../components/ItemCard";
@@ -17,6 +17,7 @@ import {
 
 export function ItemsView({
   loading,
+  loadError,
   items,
   nowISO,
   nextDateMap,
@@ -32,6 +33,7 @@ export function ItemsView({
   onMarkPaid, // ✅ A) 新增
 }: {
   loading: boolean;
+  loadError: string | null;
   items: SubscriptionItem[];
   nowISO: string;
   nextDateMap: Map<string, NextDates>;
@@ -85,6 +87,12 @@ export function ItemsView({
         <Typography color="text.secondary" sx={{ mt: 2 }}>
           載入中…
         </Typography>
+      )}
+
+      {loadError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {loadError}
+        </Alert>
       )}
 
       <Stack spacing={2}>
