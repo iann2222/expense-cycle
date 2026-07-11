@@ -11,6 +11,22 @@ function defaultResult(): ImportResult {
   return { open: false, success: true, message: "" };
 }
 
+function validateTagColors(raw: unknown): TagColors {
+  if (raw === undefined) return {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("備份內容格式錯誤（tagColors）");
+  }
+
+  const out: TagColors = {};
+  for (const [tag, color] of Object.entries(raw)) {
+    if (typeof color !== "string") {
+      throw new Error(`備份內容格式錯誤（tagColors.${tag}）`);
+    }
+    out[tag] = color;
+  }
+  return out;
+}
+
 export function useBackup(args: {
   exportBackup: () => any;
   importBackupReplace: (raw: any) => Promise<void>;
@@ -62,12 +78,13 @@ export function useBackup(args: {
           return;
         }
 
-        // tagColors（如果檔案內有就更新）
-        if (raw?.tagColors && typeof raw.tagColors === "object") {
-          replaceTagColors(raw.tagColors as TagColors);
-        }
+        const nextTagColors = validateTagColors(raw?.tagColors);
+        const hasTagColors = raw?.tagColors !== undefined;
 
         await importBackupReplace(raw);
+
+        // items 匯入成功後才更新 tagColors，避免失敗時留下部分匯入狀態。
+        if (hasTagColors) replaceTagColors(nextTagColors);
 
         setResult({
           open: true,
