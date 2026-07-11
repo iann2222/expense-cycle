@@ -39,6 +39,8 @@ import { TzWarningDialog } from "./components/TzWarningDialog";
 
 import { useBackup } from "./state/useBackup";
 
+const PWA_SYSTEM_COLOR = "#000000";
+
 export default function App({
   settings,
   actions,
@@ -71,19 +73,14 @@ export default function App({
 
   const vs = useViewState(settings);
 
-  // 動態更新瀏覽器/Android 狀態列顏色（theme-color）
+  // Android PWA 狀態列固定使用黑色，避免系統分隔線在深色模式露出異色。
   useEffect(() => {
-    const meta = document.querySelector(
-      'meta[name="theme-color"]',
-    ) as HTMLMetaElement | null;
-
-    if (!meta) return;
-
-    meta.setAttribute(
-      "content",
-      settings.themeMode === "dark" ? "#121212" : "#1976d2",
-    );
-  }, [settings.themeMode]);
+    document
+      .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+      .forEach((meta) => {
+        meta.setAttribute("content", PWA_SYSTEM_COLOR);
+      });
+  }, []);
 
   // dialog state
   const [dialogOpen, setDialogOpen] = useState(false);

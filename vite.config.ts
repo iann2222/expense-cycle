@@ -13,7 +13,7 @@ export default defineConfig({
         name: "ExpenseCycle",
         short_name: "ExpenseCycle",
         description: "週期性支出/訂閱管理",
-        theme_color: "#1976d2",
+        theme_color: "#000000",
         background_color: "#0b0f14",
         display: "standalone",
         scope: "/expense-cycle/",
