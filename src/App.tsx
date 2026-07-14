@@ -328,6 +328,7 @@ export default function App({
               totalYearlyRaw={totalYearlyRaw}
               totalMonthlyEq={totalMonthlyEq}
               totalYearlyEq={totalYearlyEq}
+              onChangeViewMode={vs.changeViewMode}
               onClickItem={(it) => {
                 setEditing(it);
                 setDialogOpen(true);

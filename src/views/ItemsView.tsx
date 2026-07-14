@@ -3,8 +3,18 @@ import type { SubscriptionItem } from "../types/models";
 import type { TagColors } from "../components/TagsView";
 import type { NextDates } from "../utils/sort";
 
-import { Alert, Card, CardContent, Fab, Stack, Typography } from "@mui/material";
+import {
+  Alert,
+  Card,
+  CardContent,
+  Fab,
+  IconButton,
+  Stack,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 
 import { ItemCard } from "../components/ItemCard";
 import { diffDays } from "../utils/dates";
@@ -28,6 +38,7 @@ export function ItemsView({
   totalYearlyRaw,
   totalMonthlyEq,
   totalYearlyEq,
+  onChangeViewMode,
   onClickItem,
   onAdd,
   onMarkPaid, // ✅ A) 新增
@@ -46,6 +57,7 @@ export function ItemsView({
   totalMonthlyEq: number;
   totalYearlyEq: number;
 
+  onChangeViewMode: (mode: DefaultViewMode) => void;
   onClickItem: (item: SubscriptionItem) => void;
   onAdd: () => void;
 
@@ -58,13 +70,36 @@ export function ItemsView({
     return "年";
   }
 
+  const nextViewMode: DefaultViewMode =
+    viewMode === "original"
+      ? "monthly"
+      : viewMode === "monthly"
+        ? "yearly"
+        : "original";
+  const switchLabel = `切換為${viewModeLabel(nextViewMode)}統計`;
+
   return (
     <>
       <Card variant="outlined" sx={{ mb: 2 }}>
         <CardContent>
-          <Typography variant="overline" color="text.secondary">
-            總計（{viewModeLabel(viewMode)}）
-          </Typography>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+          >
+            <Typography variant="overline" color="text.secondary">
+              總計（{viewModeLabel(viewMode)}）
+            </Typography>
+            <Tooltip title={switchLabel}>
+              <IconButton
+                size="small"
+                aria-label={switchLabel}
+                onClick={() => onChangeViewMode(nextViewMode)}
+              >
+                <SwapHorizIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
 
           {viewMode === "original" ? (
             <Typography variant="h6" sx={{ mt: 0.5 }}>
